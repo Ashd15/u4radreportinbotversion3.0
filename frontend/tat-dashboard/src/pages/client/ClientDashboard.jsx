@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react"; 
 import {
   Search,
   MapPin,
@@ -11,21 +11,62 @@ import {
   Edit3,
   X,
 } from "lucide-react";
-import ApiHandler from "./apiHandler"; // En
-// Code is write by shyam on the date of 20-09-2025
-// remain code updated option(put optain not working) and some ui changes. 
+import ApiHandler from "./apiHandler";
 
 const ClientSidebar = ({ summary }) => (
   <div className="w-64 bg-white shadow-lg p-4">
     <h3 className="font-bold text-lg mb-4">Dashboard Summary</h3>
     <div className="space-y-2 text-sm">
-      <div>CT: {summary.ct}</div>
-      <div>MRI: {summary.mri}</div>
-      <div>X-Ray: {summary.xray}</div>
-      <div>Total Sent: {summary.totalSent}</div>
-      <div>Total Reported: {summary.totalReported}</div>
-      <div>Total Wallet: ${summary.totalWallet}</div>
-      <div>Money Left: ${summary.moneyLeft}</div>
+      <div className="flex justify-between">
+        <span>CT:</span>
+        <span className="font-semibold text-blue-600">{summary.ct}</span>
+      </div>
+      <div className="flex justify-between">
+        <span>MRI:</span>
+        <span className="font-semibold text-green-600">{summary.mri}</span>
+      </div>
+      <div className="flex justify-between">
+        <span>X-Ray:</span>
+        <span className="font-semibold text-purple-600">{summary.xray}</span>
+      </div>
+      <hr className="my-2" />
+      <div className="flex justify-between">
+        <span>Total Sent:</span>
+        <span className="font-semibold text-gray-800">{summary.totalSent}</span>
+      </div>
+      <div className="flex justify-between">
+        <span>Total Reported:</span>
+        <span className="font-semibold text-green-600">{summary.totalReported}</span>
+      </div>
+      <div className="flex justify-between">
+        <span>Total Pending:</span>
+        <span className="font-semibold text-yellow-600">{summary.totalPending}</span>
+      </div>
+      <hr className="my-2" />
+      <div className="flex justify-between">
+        <span>Total Wallet:</span>
+        <span className="font-semibold text-emerald-600">${summary.totalWallet}</span>
+      </div>
+      <div className="flex justify-between">
+        <span>Money Left:</span>
+        <span className="font-semibold text-red-600">${summary.moneyLeft}</span>
+      </div>
+      
+      {/* Progress bars for visual representation */}
+      <div className="mt-4 space-y-2">
+        <div>
+          <div className="text-xs text-gray-600 mb-1">Completion Rate</div>
+          <div className="w-full bg-gray-200 rounded-full h-2">
+            <div 
+              className="bg-green-500 h-2 rounded-full" 
+              style={{ width: `${summary.totalSent > 0 ? (summary.totalReported / summary.totalSent) * 100 : 0}%` }}
+            ></div>
+          </div>
+          <div className="text-xs text-gray-500 mt-1">
+            {summary.totalSent > 0 ? Math.round((summary.totalReported / summary.totalSent) * 100) : 0}%
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 );
@@ -36,6 +77,9 @@ const ClientDashboard = () => {
   const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [uploadingFile, setUploadingFile] = useState(false);
+  const reportsPerPage = 50;
 
   const [filters, setFilters] = useState({
     name: "",
@@ -49,13 +93,19 @@ const ClientDashboard = () => {
     fetchReports();
   }, []);
 
+  //Reset Page When Filtering
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filters]);
+
   const fetchReports = async () => {
     try {
       setLoading(true);
       const response = await ApiHandler.getDicomReports();
       if (response.success) {
         const transformedData = response.data.map(item => ({
-          id:item.id,
+          id: item.id,
+          patient_id: item.patient_id,
           name: item.patient_name || "N/A",
           email: item.email || "N/A",
           testDate: item.recived_on_db ? new Date(item.recived_on_db).toLocaleDateString() : "N/A",
@@ -81,6 +131,7 @@ const ClientDashboard = () => {
           inhousePatient: item.inhouse_patient
         }));
         setReports(transformedData);
+        console.log("Fetched Reports:", transformedData);
       } else {
         setError(response.error || "Failed to fetch reports");
       }
@@ -91,7 +142,30 @@ const ClientDashboard = () => {
     }
   };
 
-  const summary = { ct: 25, mri: 40, xray: 120, totalSent: 185, totalReported: 150, totalWallet: 5000, moneyLeft: 1200 };
+  // Calculate dynamic summary from reports data
+  const summary = React.useMemo(() => {
+    const ct = reports.filter(report => report.modality === 'CT').length;
+    const mri = reports.filter(report => report.modality === 'MR').length;
+    const xray = reports.filter(report => report.modality === 'DX' || report.modality === 'CR').length;
+    const totalSent = reports.length;
+    const totalReported = reports.filter(report => report.status === 'Ready').length;
+    const totalPending = reports.filter(report => report.status === 'Pending').length;
+    
+    // You can adjust these calculations based on your business logic
+    const totalWallet = 5000; // This might come from a separate API call
+    const moneyLeft = totalWallet - (totalReported * 10); // Example: $10 per report
+    
+    return {
+      ct,
+      mri,
+      xray,
+      totalSent,
+      totalReported,
+      totalPending,
+      totalWallet,
+      moneyLeft: Math.max(0, moneyLeft) // Ensure it doesn't go negative
+    };
+  }, [reports]);
 
   const filteredReports = reports.filter(report =>
     report.name.toLowerCase().includes(filters.name.toLowerCase()) &&
@@ -100,22 +174,53 @@ const ClientDashboard = () => {
     (filters.status === "" || report.status === filters.status)
   );
 
-  const handleSaveReport = async (reportData) => {
+  const handleSaveReport = async (reportData, historyFiles = null) => {
     try {
       const originalReport = reports.find(r => r.id === selectedReport.id);
       if (!originalReport) return;
-      // Prepare API payload from form
-      const apiData = { ...reportData };
-      // Updating the report (not patient_id)
+      
+      // Map frontend field names to backend field names
+      const apiData = {
+        patient_name: reportData.patient_name,
+        patient_id: reportData.patient_id,
+        age: reportData.age,
+        gender: reportData.gender,
+        study_description: reportData.study_description,
+        notes: reportData.notes,
+        body_part_examined: reportData.body_part_examined,
+        referring_doctor_name: reportData.referring_doctor_name,
+        email: reportData.email,
+        whatsapp_number: reportData.whatsapp_number,
+        contrast_used: reportData.contrast_used === 'true' || reportData.contrast_used === true,
+        is_follow_up: reportData.is_follow_up === 'true' || reportData.is_follow_up === true,
+        imaging_views: reportData.imaging_views
+      };
+      
+      console.log("Sending API data:", apiData); // Debug log
+      
       const response = await ApiHandler.updateDicomReport(selectedReport.id, apiData);
 
       if (response.success) {
+        // If there's a history file, upload it separately
+        if (historyFiles && historyFiles.length > 0) {
+          setUploadingFile(true);
+          const uploadResponse = await ApiHandler.uploadHistoryFile(selectedReport.id, historyFiles);
+          setUploadingFile(false);
+          
+          if (!uploadResponse.success) {
+            alert("Report updated but history file upload failed: " + uploadResponse.error);
+          } else {
+            alert("Report updated and history file uploaded successfully!");
+          }
+        }
+        
         await fetchReports();
         setSelectedReport(null);
       } else {
         alert("Failed to update report: " + response.error);
       }
     } catch (err) {
+      setUploadingFile(false);
       alert("Error updating report: " + err.message);
     }
   };
@@ -133,6 +238,18 @@ const ClientDashboard = () => {
     } catch (err) {
       alert("Error updating status: " + err.message);
     }
+  };
+
+  //Pagination Logic
+  const paginatedReports = filteredReports.slice(
+    (currentPage - 1) * reportsPerPage,
+    currentPage * reportsPerPage
+  );
+
+  const totalPages = Math.ceil(filteredReports.length / reportsPerPage);
+
+  const handlePageChange = (page) => {
+    setCurrentPage(page);
   };
 
   if (loading) {
@@ -163,6 +280,7 @@ const ClientDashboard = () => {
   }
 
   return (
+    <>
     <div className="flex h-screen w-screen overflow-hidden bg-gradient-to-br from-gray-50 to-gray-100">
       {/* Sidebar */}
       {showSidebar && <ClientSidebar summary={summary} />}
@@ -254,14 +372,14 @@ const ClientDashboard = () => {
                 </tr>
               </thead>
               <tbody>
-                {filteredReports.map((report, index) => (
+                {paginatedReports.map((report, index)=> (
                   <tr
                     key={report.id}
                     className={`transition hover:bg-gray-50 ${
                       index % 2 === 0 ? "bg-gray-50/30" : "bg-white"
                     }`}
                   >
-                    <td className="p-3 font-medium text-gray-700">{report.id}</td>
+                    <td className="p-3 font-medium text-gray-700">{report.patient_id}</td>
                     <td className="p-3">{report.name}</td>
                     <td className="p-3 text-gray-600">{report.email}</td>
                     <td className="p-3">{report.testDate}</td>
@@ -313,17 +431,13 @@ const ClientDashboard = () => {
                             checked={report.isVIP}
                             onChange={async (e) => {
                               const checked = e.target.checked;
-                              // Optimistically update UI by updating local state
                               setReports(prev =>
                                 prev.map(r => r.id === report.id ? { ...r, isVIP: checked } : r)
                               );
-                              // Send update to backend
                               try {
                                 await ApiHandler.updateDicomReport(report.id, { vip: checked });
                               } catch (error) {
-                                // Optional: revert change or show error
                                 alert("Failed to update VIP status: " + error.message);
-                                // revert state if needed
                                 setReports(prev =>
                                   prev.map(r => r.id === report.id ? { ...r, isVIP: !checked } : r)
                                 );
@@ -386,6 +500,24 @@ const ClientDashboard = () => {
                 ))}
               </tbody>
             </table>
+            {totalPages > 1 && (
+              <div className="flex items-center justify-center gap-2 py-4">
+                {Array.from({ length: totalPages }, (_, i) => (
+                  <button
+                    key={i}
+                    onClick={() => handlePageChange(i + 1)}
+                    className={`px-3 py-1 rounded ${currentPage === i + 1
+                      ? "bg-red-500 text-white"
+                      : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                    }`}
+                  >
+                    {i + 1}
+                  </button>
+                ))}
+              </div>
+            )}
+            </div> 
+            
           </div>
         </div>
       </div>
@@ -407,11 +539,18 @@ const ClientDashboard = () => {
             <form
               onSubmit={e => {
                 e.preventDefault();
-                // Get form values
                 const fd = new FormData(e.target);
                 const newData = {};
-                fd.forEach((value, key) => newData[key] = value);
-                handleSaveReport(newData);
+                fd.forEach((value, key) => {
+                  if (key !== 'history_file') {
+                    newData[key] = value;
+                  }
+                });
+                
+                // Get the history file separately
+                const historyFiles = Array.from(fd.getAll('history_file')).filter(f => f && f.size > 0);
+                
+                handleSaveReport(newData, historyFiles.length ? historyFiles : null);
               }}
               className="space-y-4"
             >
@@ -420,7 +559,7 @@ const ClientDashboard = () => {
                   <span>Name:</span>
                   <input
                     type="text"
-                    name="name"
+                    name="patient_name"
                     defaultValue={selectedReport.name}
                     className="border rounded p-2"
                   />
@@ -430,7 +569,7 @@ const ClientDashboard = () => {
                   <input
                     type="text"
                     name="patient_id"
-                    defaultValue={selectedReport.id}
+                    defaultValue={selectedReport.patient_id || ""}
                     className="border rounded p-2"
                   />
                 </label>
@@ -484,7 +623,7 @@ const ClientDashboard = () => {
               <label className="flex flex-col">
                 <span>Body Part Examined:</span>
                 <select
-                  name="body_part"
+                  name="body_part_examined"
                   defaultValue={selectedReport.bodyPart || "NA"}
                   className="border rounded p-2"
                 >
@@ -518,7 +657,7 @@ const ClientDashboard = () => {
                 <span>Referring Doctor Name:</span>
                 <input
                   type="text"
-                  name="referring_doctor"
+                  name="referring_doctor_name"
                   defaultValue={selectedReport.referringDoctor || ""}
                   className="border rounded p-2"
                 />
@@ -543,7 +682,16 @@ const ClientDashboard = () => {
               </label>
               <label className="flex flex-col">
                 <span>Patient History File:</span>
-                <input type="file" className="border rounded p-2" />
+                <input 
+                  type="file" 
+                  name="history_file"
+                  multiple
+                  accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png"
+                  className="border rounded p-2" 
+                />
+                <span className="text-xs text-gray-500 mt-1">
+                  Supported formats: PDF, DOC, DOCX, TXT, JPG, PNG (Max 10MB)
+                </span>
               </label>
 
               {/* Checklist Section */}
@@ -562,14 +710,18 @@ const ClientDashboard = () => {
                     <p>2. Contrast Imaging Verification</p>
                     <label className="mr-4">
                       <input
-                        type="checkbox"
+                        type="radio"
+                        name="contrast_used"
+                        value="true"
                         className="mr-1"
                         defaultChecked={selectedReport.contrastUsed}
                       /> Yes
                     </label>
                     <label>
                       <input
-                        type="checkbox"
+                        type="radio"
+                        name="contrast_used"
+                        value="false"
                         className="mr-1"
                         defaultChecked={!selectedReport.contrastUsed}
                       /> No
@@ -579,14 +731,18 @@ const ClientDashboard = () => {
                     <p>3. Comparative / Follow-Up Verification</p>
                     <label className="mr-4">
                       <input
-                        type="checkbox"
+                        type="radio"
+                        name="is_follow_up"
+                        value="true"
                         className="mr-1"
                         defaultChecked={selectedReport.isFollowUp}
                       /> Yes
                     </label>
                     <label>
                       <input
-                        type="checkbox"
+                        type="radio"
+                        name="is_follow_up"
+                        value="false"
                         className="mr-1"
                         defaultChecked={!selectedReport.isFollowUp}
                       /> No
@@ -596,16 +752,16 @@ const ClientDashboard = () => {
                     <p>4. Imaging View Verification (for X-ray)</p>
                     <div className="flex flex-wrap gap-4 ml-2">
                       <label>
-                        <input type="checkbox" className="mr-1" /> AP
+                        <input type="checkbox" name="imaging_views" value="AP" className="mr-1" /> AP
                       </label>
                       <label>
-                        <input type="checkbox" className="mr-1" /> PA
+                        <input type="checkbox" name="imaging_views" value="PA" className="mr-1" /> PA
                       </label>
                       <label>
-                        <input type="checkbox" className="mr-1" /> Lateral
+                        <input type="checkbox" name="imaging_views" value="Lateral" className="mr-1" /> Lateral
                       </label>
                       <label>
-                        <input type="checkbox" className="mr-1" /> Oblique
+                        <input type="checkbox" name="imaging_views" value="Oblique" className="mr-1" /> Oblique
                       </label>
                     </div>
                   </div>
@@ -623,16 +779,29 @@ const ClientDashboard = () => {
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 rounded bg-red-500 text-white hover:bg-red-600"
+                  disabled={uploadingFile}
+                  className={`px-4 py-2 rounded text-white ${
+                    uploadingFile 
+                      ? 'bg-gray-400 cursor-not-allowed' 
+                      : 'bg-red-500 hover:bg-red-600'
+                  }`}
                 >
-                  Save Changes
+                  {uploadingFile ? (
+                    <span className="flex items-center gap-2">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                      Uploading...
+                    </span>
+                  ) : (
+                    'Save Changes'
+                  )}
                 </button>
               </div>
             </form>
           </div>
         </div>
       )}
-    </div>
+
+      </>
   );
 };
 

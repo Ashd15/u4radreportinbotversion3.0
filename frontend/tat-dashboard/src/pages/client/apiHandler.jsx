@@ -83,6 +83,40 @@ class ApiHandler {
       };
     }
   }
+  
+
+static async uploadHistoryFile(dicomId, historyFiles) {
+  const formData = new FormData();
+
+  // Attach DICOM data (adjust if a different object/format is required)
+  formData.append('dicom_data', dicomId);
+
+  // Attach all files, allowing multiple files
+  if (Array.isArray(historyFiles)) {
+    historyFiles.forEach(file => {
+      formData.append('history_file', file);
+    });
+  } else if (historyFiles) {
+    formData.append('history_file', historyFiles);
+  }
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/upload-historyfile/${dicomId}/`, {
+      method: 'POST',
+      body: formData,
+      // Do not set Content-Type—it is set automatically for FormData
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    const data = await response.json();
+    return { success: true, data, status: response.status };
+  } catch (error) {
+    console.error('History file upload failed:', error);
+    return { success: false, error: error.message, status: error.status || 500 };
+  }
+}
 
   // You may add additional helper functions here if needed
 }
