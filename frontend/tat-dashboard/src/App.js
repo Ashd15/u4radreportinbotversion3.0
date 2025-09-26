@@ -4,9 +4,9 @@ import DoctorDashboard from './pages/DoctorDashboard';
 import Viewer from './pages/Viewer'; // Create this file with "Hello World"
 import ClientDashboard from "./pages/client/ClientDashboard";
 import CoordinatorDashboard from "./pages/coordinator/CoordinatorDashboard";
-import ECGDashboard from "./pages/ecg/ECGDashboard";
-import ECGPatientDashboard from "./pages/ecg/ECGPatientDashboard";
-import ECGPDFDashboard from "./pages/ecg/ECGPDFDashboard";  
+import ECGDashboard from "./pages/Ecg_dashboard/Ecg_dashboard";
+import ECGPatientDashboard from "./pages/Ecg_dashboard/Ecg_client_dashboard";
+import ECGPDFDashboard from "./pages/Ecg_dashboard/Ecg_pdf_dashboard";  
 
 
 function App() {
