@@ -1,12 +1,12 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import DoctorDashboard from './pages/DoctorDashboard';
-import Viewer from './pages/Viewer'; 
+import Viewer from './pages/Viewer'; // Create this file with "Hello World"
 import ClientDashboard from "./pages/client/ClientDashboard";
 import CoordinatorDashboard from "./pages/coordinator/CoordinatorDashboard";
-import SuperCoordinatorPanel from "./pages/superCoordinator/SuperCoordinatorPanel";
-
-import Coordinator from './pages/coordinator/demo';
+import ECGDashboard from "./pages/Ecg_dashboard/Ecg_dashboard";
+import ECGPatientDashboard from "./pages/Ecg_dashboard/Ecg_client_dashboard";
+import ECGPDFDashboard from "./pages/Ecg_dashboard/Ecg_pdf_dashboard";  
 
 
 function App() {
@@ -16,9 +16,10 @@ function App() {
         <Route path="/" element={<DoctorDashboard />} />
         <Route path="/viewer" element={<Viewer />} />
         <Route path="/client-dashboard" element={<ClientDashboard />} />
-        <Route path="/coordinator" element={<CoordinatorDashboard />} />
-        <Route path="/coordinator-demo" element={<Coordinator />} />
-        <Route path="/superCoordinator" element={<SuperCoordinatorPanel/>} />
+        <Route path="/coordinator-dashboard" element={<CoordinatorDashboard />} />
+        <Route path="/ecg-dashboard" element={<ECGDashboard />} />
+        <Route path="/ecg-patient-dashboard" element={<ECGPatientDashboard />} />
+        <Route path="/ecg-pdf-dashboard" element={<ECGPDFDashboard />} />
       </Routes>
     </Router>
   );

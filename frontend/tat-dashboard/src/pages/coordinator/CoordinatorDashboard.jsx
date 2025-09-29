@@ -1734,7 +1734,7 @@ const Coordinator = () => {
         </div>
       )}
 
-      {/* Click outside to close logout modal */}
+   
       {showLogoutConfirm && (
         <div 
           className="fixed inset-0 z-40" 

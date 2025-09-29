@@ -1,7 +1,7 @@
 const API_BASE_URL = 'http://localhost:8000/api';
 
 const CoordinatorHandler = {
-  // Get coordinators profile data
+  
   getCoordinators: async () => {
     try {
       const response = await fetch(`${API_BASE_URL}/coordinators/`);
