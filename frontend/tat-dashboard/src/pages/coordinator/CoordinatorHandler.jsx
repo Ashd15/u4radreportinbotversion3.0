@@ -134,38 +134,36 @@ const CoordinatorHandler = {
 
   // 🔹 Update patient details (with history file upload support)
   updatePatient: async (patientId, newData, historyFiles = null) => {
-    try {
-      const formData = new FormData();
+  try {
+    const payload = {
+      ...newData,
+    };
 
-      // Append text fields
-      Object.entries(newData).forEach(([key, value]) => {
-        if (value !== undefined && value !== null) {
-          formData.append(key, value);
-        }
-      });
-
-      // Append history files if available
-      if (historyFiles && historyFiles.length > 0) {
-        historyFiles.forEach(file => {
-          formData.append("history_file", file);
-        });
-      }
-
-      const response = await fetch(`${API_BASE_URL}/patients/${patientId}/`, {
-        method: 'PATCH', // partial update
-        body: formData,  // no need to set Content-Type, browser handles it
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      return await response.json();
-    } catch (error) {
-      console.error("Error updating patient:", error);
-      throw error;
+    if (historyFiles && historyFiles.length > 0) {
+      // Only names, unless you plan to send base64 content
+      payload.history_files = historyFiles.map(file => file.name);
     }
+
+    const response = await fetch(`${API_BASE_URL}/update-dicom/${patientId}/`, {
+      method: 'PUT', // full update
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error("Error updating patient:", error);
+    throw error;
   }
+}
+
+
 };
 
 export default CoordinatorHandler;
