@@ -1,54 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Users, Plus, Edit, Eye, Grid, List, Sun, Moon, Save, X, Check, AlertTriangle } from 'lucide-react';
+import ApiHandlerSuperCoordinator from './apiHandlerSuperCoordinator';
+import { useNavigate } from 'react-router-dom';
 
-// API Handler Class
-class ApiHandlerSuperCoordinator {
-  constructor(baseUrl = 'http://127.0.0.1:8000') {
-    this.baseUrl = baseUrl;
-  }
-
-  async makeRequest(endpoint, options = {}) {
-    try {
-      const response = await fetch(`${this.baseUrl}${endpoint}`, {
-        headers: {
-          'Content-Type': 'application/json',
-          ...options.headers,
-        },
-        ...options,
-      });
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      
-      return await response.json();
-    } catch (error) {
-      console.error('API request failed:', error);
-      throw error;
-    }
-  }
-
-  // GET all clients
-  async getAllClients() {
-    return this.makeRequest('/supercoordinator/clients/');
-  }
-
-  // POST create new client
-  async createClient(clientData) {
-    return this.makeRequest('/supercoordinator/clients/', {
-      method: 'POST',
-      body: JSON.stringify(clientData),
-    });
-  }
-
-  // PATCH update client
-  async updateClient(clientId, clientData) {
-    return this.makeRequest(`/supercoordinator/clients/${clientId}/`, {
-      method: 'PATCH',
-      body: JSON.stringify(clientData),
-    });
-  }
-}
 
 // Main SuperCoordinator Panel Component
 const SuperCoordinatorPanel = () => {
@@ -60,7 +14,9 @@ const SuperCoordinatorPanel = () => {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [editingClient, setEditingClient] = useState(null);
   const [apiHandler] = useState(new ApiHandlerSuperCoordinator());
+  const navigate = useNavigate();
 
+  
   // Form state for creating/editing clients
   const [formData, setFormData] = useState({
     name: '',
@@ -238,6 +194,12 @@ const SuperCoordinatorPanel = () => {
             
             <div className="flex items-center gap-3">
               {/* Theme Toggle */}
+              <button
+        onClick={() => navigate('/PatientRecordsSearch')}
+        className="bg-blue-500 text-white px-4 py-2 rounded"
+      >
+        Go to Patient Records
+      </button>
               <button
                 onClick={() => setDarkMode(!darkMode)}
                 className={`p-2 rounded-lg transition-colors ${

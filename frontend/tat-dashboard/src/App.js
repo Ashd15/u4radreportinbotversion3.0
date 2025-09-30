@@ -8,8 +8,8 @@ import ECGDashboard from "./pages/Ecg_dashboard/Ecg_dashboard";
 import ECGPatientDashboard from "./pages/Ecg_dashboard/Ecg_client_dashboard";
 import ECGPDFDashboard from "./pages/Ecg_dashboard/Ecg_pdf_dashboard";  
 import SuperCoordinatorPanel from "./pages/superCoordinator/SuperCoordinatorPanel";
-
-
+import PatientRecordsSearch from "./pages/superCoordinator/PatientRecordsSearch";
+ 
 function App() {
   return (
     <Router>
@@ -22,6 +22,8 @@ function App() {
         <Route path="/ecg-dashboard" element={<ECGDashboard />} />
         <Route path="/ecg-patient-dashboard" element={<ECGPatientDashboard />} />
         <Route path="/ecg-pdf-dashboard" element={<ECGPDFDashboard />} />
+        <Route path="/SuperCoordinator" element={<SuperCoordinatorPanel />} />
+        <Route path="/PatientRecordsSearch" element={<PatientRecordsSearch />} />
       </Routes>
     </Router>
   );
