@@ -5,11 +5,14 @@ class ApiHandler {
   // Generic method for making API requests
   static async makeRequest(endpoint, options = {}) {
     const url = `${API_BASE_URL}${endpoint}`;
+
+    // Detect if body is FormData (for file uploads)
+    const isFormData = options.body instanceof FormData;
+
     const defaultOptions = {
-      headers: {
-        'Content-Type': 'application/json',
-        ...options.headers,
-      },
+      headers: isFormData
+        ? { ...options.headers } // Do NOT set Content-Type for FormData
+        : { 'Content-Type': 'application/json', ...options.headers },
     };
 
     try {
@@ -23,6 +26,11 @@ class ApiHandler {
       if (options.responseType === 'blob') {
         const blob = await response.blob();
         return { success: true, data: blob, status: response.status };
+      }
+
+      // If response is empty, return success without data
+      if (response.status === 204) {
+        return { success: true, data: null, status: response.status };
       }
 
       const data = await response.json();
@@ -45,14 +53,13 @@ class ApiHandler {
 
   // Update a patient DICOM report
   static async updateDicomReport(id, data) {
-    // Use the updated endpoint for updating: /update-dicom/<id>
     return await this.makeRequest(`/update-dicom/${id}/`, {
       method: 'PUT',
       body: JSON.stringify(data),
     });
   }
 
-  // Download a report file (optionally PDF/Word)
+  // Download a report file (PDF/Word)
   static async downloadReport(reportId, format = 'pdf') {
     try {
       const response = await fetch(
@@ -71,16 +78,11 @@ class ApiHandler {
       link.click();
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
-      return {
-        success: true,
-        message: 'File downloaded successfully',
-      };
+
+      return { success: true, message: 'File downloaded successfully' };
     } catch (error) {
       console.error('Download failed:', error);
-      return {
-        success: false,
-        error: error.message,
-      };
+      return { success: false, error: error.message };
     }
   }
   
@@ -118,7 +120,13 @@ static async uploadHistoryFile(dicomId, historyFiles) {
   }
 }
 
-  // You may add additional helper functions here if needed
+  // Additional helper for POSTing FormData (like ECG uploads)
+  static async postFormData(endpoint, formData) {
+    return await this.makeRequest(endpoint, {
+      method: 'POST',
+      body: formData,
+    });
+  }
 }
 
 export default ApiHandler;
