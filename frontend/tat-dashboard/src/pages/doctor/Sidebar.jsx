@@ -1,20 +1,36 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { fetchPersonalInfo } from './apiConnector'; // adjust path if needed
 
-const Sidebar = ({ onClose, reportedCases, pendingCases }) => {
+const Sidebar = ({ onClose }) => {
   const [openSection, setOpenSection] = useState(null);
+  const [userInfo, setUserInfo] = useState(null);
 
   const toggleSection = (index) => {
     setOpenSection(openSection === index ? null : index);
   };
 
+  useEffect(() => {
+    const getUserInfo = async () => {
+      try {
+        const response = await fetchPersonalInfo();
+        setUserInfo(response.data);
+      } catch (error) {
+        console.error('Error fetching personal info:', error);
+      }
+    };
+    getUserInfo();
+  }, []);
+
+  if (!userInfo) return <div style={{ padding: 20, color: '#fff' }}>Loading...</div>;
+
   const sections = [
     {
       title: 'About Me',
-      content: 'Expert in CT, MRI, and X-Ray reporting. Dedicated to precision and patient care.'
+      content: userInfo.about_me
     },
     {
       title: 'Case Summary',
-      content: `Cases Completed: ${reportedCases}\nPending Reports: ${pendingCases}`
+      content: `Cases Completed: ${userInfo.total_reported}\nPending Reports: ${userInfo.pending_reports || 0}`
     },
     {
       title: 'Payment Summary',
@@ -62,16 +78,17 @@ const Sidebar = ({ onClose, reportedCases, pendingCases }) => {
         textAlign: 'center'
       }}>
         <img
-          src="https://via.placeholder.com/80"
+          // src={userInfo.uploadpicture || 'https://via.placeholder.com/80'}
+          src="https://thumbs.dreamstime.com/z/portrait-confident-young-doctor-white-background-smiling-31417037.jpg"
           alt="Doctor"
           style={{
             borderRadius: '50%',
             border: '3px solid #f44336'
           }}
         />
-        <h3 style={{ color: '#fff' }}>Dr. Akash</h3>
-        <p style={{ color: '#aaa' }}>Senior Radiologist</p>
-        <p style={{ color: '#777' }}>U4rad Hospital</p>
+        <h3 style={{ color: '#fff' }}>{userInfo.user.first_name} {userInfo.user.last_name}</h3>
+        <p style={{ color: '#aaa' }}>{userInfo.title}</p>
+        <p style={{ color: '#777' }}>{userInfo.hospital}</p>
       </div>
 
       {/* Collapsible Sections */}
@@ -102,7 +119,6 @@ const Sidebar = ({ onClose, reportedCases, pendingCases }) => {
             </span>
           </h4>
 
-          {/* Content (only shown when expanded) */}
           {openSection === i && (
             <div style={{
               marginTop: 8,
