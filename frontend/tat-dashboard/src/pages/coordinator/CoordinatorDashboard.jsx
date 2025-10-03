@@ -33,6 +33,8 @@ const Coordinator = () => {
 
   const [dateFilter, setDateFilter] = useState('');
   const [showDatePicker, setShowDatePicker] = useState(false);
+  // State to store live time remaining for each patient
+  const [liveTimeRemaining, setLiveTimeRemaining] = useState({});  
 
   // Persist dark mode preference
   useEffect(() => {
@@ -105,6 +107,42 @@ const Coordinator = () => {
       setLoading(false);
     }
   };
+
+  // Initialize live time remaining when patients data is loaded
+useEffect(() => {
+  if (patients.length > 0) {
+    const initialTimes = {};
+    patients.forEach(patient => {
+      if (!patient.is_done && patient.time_remaining !== null) {
+        initialTimes[patient.id] = patient.time_remaining;
+      }
+    });
+    setLiveTimeRemaining(initialTimes);
+  }
+}, [patients]);
+
+// Countdown timer effect
+useEffect(() => {
+  const timer = setInterval(() => {
+    setLiveTimeRemaining(prev => {
+      const updated = { ...prev };
+      let hasChanges = false;
+      
+      Object.keys(updated).forEach(patientId => {
+        const patient = patients.find(p => p.id === parseInt(patientId));
+        
+        if (patient && !patient.is_done) {
+          updated[patientId] = updated[patientId] - 1;
+          hasChanges = true;
+        }
+      });
+      
+      return hasChanges ? updated : prev;
+    });
+  }, 1000);
+
+  return () => clearInterval(timer);
+}, [patients]);
 
   // Apply filters
   useEffect(() => {
@@ -275,24 +313,32 @@ const Coordinator = () => {
          const absTime = Math.abs(overdueSeconds);
          const hours = Math.floor(absTime / 3600);
          const minutes = Math.floor((absTime % 3600) / 60);
-         return `Completed in ${hours}h ${minutes}m`;
+         const seconds = absTime % 60;
+         return `Completed in ${hours}h ${minutes}m ${seconds}s`;
        }
        return 'Completed';
      }
      
      // For pending reports, show remaining/overdue time
-     if (!timeRemaining) return 'N/A';
+     if (timeRemaining === null || timeRemaining === undefined) return 'N/A';
      
      const absTime = Math.abs(timeRemaining);
      const hours = Math.floor(absTime / 3600);
      const minutes = Math.floor((absTime % 3600) / 60);
+     const seconds = absTime % 60;
      
      if (timeRemaining < 0) {
-       return `Overdue by ${hours}h ${minutes}m`;
+       return `Overdue by ${hours}h ${minutes}m ${seconds}s`;
      } else {
-       return `${hours}h ${minutes}m remaining`;
+       return `${hours}h ${minutes}m ${seconds}s remaining`;
      }
    };
+    
+  const getLiveTimeRemaining = (patientId, fallbackTime) => {
+    return liveTimeRemaining[patientId] !== undefined 
+      ? liveTimeRemaining[patientId] 
+      : fallbackTime;
+  };
 
    const renderGridView = () => (
     <div className="p-6">
@@ -399,8 +445,10 @@ const Coordinator = () => {
               {/* TAT Status */}
               <div className="text-sm">
                 <span className={`font-medium ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>TAT Status:</span>
-                <span className={`ml-1 font-bold ${getTimeRemainingColor(patient.time_remaining, patient.tat_breached, patient.is_done)}`}>
-                  {formatTimeRemaining(patient.time_remaining, patient.is_done, patient.overdue_seconds)}
+                <span className={`text-xs font-bold ${
+                  getTimeRemainingColor(getLiveTimeRemaining(patient.id, patient.time_remaining), patient.tat_breached, patient.is_done)
+                }`}>
+                  {formatTimeRemaining(getLiveTimeRemaining(patient.id, patient.time_remaining), patient.is_done, patient.overdue_seconds)}
                 </span>
               </div>
               </div>
@@ -1129,11 +1177,9 @@ const Coordinator = () => {
         </td>
         <td className="px-4 py-4 whitespace-nowrap text-sm">
            <div className="flex flex-col space-y-1">
-             <span className={`text-xs font-bold ${
-               getTimeRemainingColor(patient.time_remaining, patient.tat_breached, patient.is_done)
-             }`}>
-                {formatTimeRemaining(patient.time_remaining, patient.is_done, patient.overdue_seconds)}
-              </span>
+             <span className={`ml-1 font-bold ${getTimeRemainingColor(getLiveTimeRemaining(patient.id, patient.time_remaining), patient.tat_breached, patient.is_done)}`}>
+  {formatTimeRemaining(getLiveTimeRemaining(patient.id, patient.time_remaining), patient.is_done, patient.overdue_seconds)}
+</span>
               {patient.tat_breached && !patient.is_done && (
                 <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-bold bg-gradient-to-r from-red-100 to-red-200 text-red-800 border border-red-300 animate-pulse dark:from-red-900/30 dark:to-red-800/30 dark:text-red-200 dark:border-red-600">
                  🚨 TAT BREACHED

@@ -102,27 +102,54 @@ class ApiHandlerSuperCoordinator {
     return this.makeRequest(`/supercoordinator/patients/${queryString ? '?' + queryString : ''}`);
   }
 
-  getExportURL(filterParams = {}) {
-    const params = new URLSearchParams();
-    
-    if (filterParams.patientName) params.append('name', filterParams.patientName);
-    if (filterParams.startDate) params.append('start_date', filterParams.startDate);
-    if (filterParams.endDate) params.append('end_date', filterParams.endDate);
-    if (filterParams.receivedStartDate) params.append('received_start_date', filterParams.receivedStartDate);
-    if (filterParams.receivedEndDate) params.append('received_end_date', filterParams.receivedEndDate);
-    
-    filterParams.modality?.forEach(m => params.append('Modality', m));
-    filterParams.radiologist?.forEach(r => params.append('radiologist', r));
-    filterParams.institution?.forEach(i => params.append('institution', i));
-    
-    if (filterParams.status && filterParams.status !== 'All') {
-      params.append('status', filterParams.status.toLowerCase());
-    }
-    
-    params.append('export', '1');
+  // Remove or comment out the old getExportURL method
+// getExportURL(filterParams = {}) { ... }
 
-    return `${this.baseUrl}/supercoordinator/patients/?${params.toString()}`;
+// Add this new method instead
+async exportPatients(filterParams = {}) {
+  const payload = {};
+  
+  if (filterParams.patientName) payload.name = filterParams.patientName;
+  if (filterParams.startDate) payload.start_date = filterParams.startDate;
+  if (filterParams.endDate) payload.end_date = filterParams.endDate;
+  if (filterParams.receivedStartDate) payload.received_start_date = filterParams.receivedStartDate;
+  if (filterParams.receivedEndDate) payload.received_end_date = filterParams.receivedEndDate;
+  
+  if (filterParams.modality?.length > 0) payload.Modality = filterParams.modality;
+  if (filterParams.radiologist?.length > 0) payload.radiologist = filterParams.radiologist;
+  if (filterParams.institution?.length > 0) payload.institution = filterParams.institution;
+  
+  if (filterParams.status && filterParams.status !== 'All') {
+    payload.status = filterParams.status.toLowerCase();
   }
+  
+  payload.export = 1;
+
+  const response = await fetch(`${this.baseUrl}/supercoordinator/patients/`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+
+  // Get the blob (Excel file)
+  const blob = await response.blob();
+  
+  // Create download link
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `patient_records_${new Date().toISOString().split('T')[0]}.xlsx`;
+  document.body.appendChild(a);
+  a.click();
+  window.URL.revokeObjectURL(url);
+  document.body.removeChild(a);
+}
 
   async getClientNames() {
     return this.makeRequest('/supercoordinator/clientss/');

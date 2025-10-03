@@ -75,14 +75,19 @@ export default function PatientRecordsSearch() {
     fetchPatients();
   };
 
-  const handleExportExcel = () => {
-    try {
-      const exportURL = api.getExportURL(filters);
-      window.open(exportURL, '_blank');
-    } catch (error) {
-      console.error('Error exporting Excel:', error);
-    }
-  };
+ const handleExportExcel = async () => {
+  try {
+    setLoading(true);
+    await api.exportPatients(filters);
+    // Optional: Show success message
+    alert('Excel file downloaded successfully!');
+  } catch (error) {
+    console.error('Error exporting Excel:', error);
+    alert('Failed to export Excel. Please try again.');
+  } finally {
+    setLoading(false);
+  }
+};
 
   const handleMultiSelect = (field, value) => {
     setFilters(prev => {
@@ -107,7 +112,7 @@ export default function PatientRecordsSearch() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-6">
-      <div className="max-w-7xl mx-auto">
+      <div className="w-full h-full">
         <div className="bg-white rounded-lg shadow-lg p-8 mb-6">
           <h1 className="text-3xl font-bold text-gray-800 mb-6 flex items-center gap-3">
             <Search className="text-blue-600" size={32} />
