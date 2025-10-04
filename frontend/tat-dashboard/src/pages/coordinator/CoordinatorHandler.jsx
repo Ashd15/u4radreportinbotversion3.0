@@ -19,7 +19,11 @@ const CoordinatorHandler = {
   // Get all patient data with TAT counters
   getTatCounters: async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/fetch-tat-counters/`);
+      const response = await fetch(`${API_BASE_URL}/fetch-tat-counters/`, {
+      method: "GET",
+      credentials: "include",   // 🔑 send session cookie
+    });
+
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }

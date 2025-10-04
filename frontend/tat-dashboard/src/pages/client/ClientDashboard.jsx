@@ -79,6 +79,7 @@ const ClientDashboard = () => {
   const [error, setError] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [uploadingFile, setUploadingFile] = useState(false);
+  const [bodyParts, setBodyParts] = useState([]);
   const reportsPerPage = 50;
 
   const [filters, setFilters] = useState({
@@ -92,6 +93,21 @@ const ClientDashboard = () => {
   useEffect(() => {
     fetchReports();
   }, []);
+
+
+  useEffect(() => {
+  fetchBodyParts();
+}, []);
+
+const fetchBodyParts = async () => {
+  const response = await ApiHandler.getBodyParts();
+  if (response.success) {
+    setBodyParts(response.data);
+  } else {
+    console.error("Failed to fetch body parts:", response.error);
+  }
+};
+
 
   //Reset Page When Filtering
   useEffect(() => {
@@ -291,12 +307,23 @@ const ClientDashboard = () => {
         <div className="flex items-center justify-between mb-4">
           <div>
             <h1 className="text-3xl font-extrabold tracking-tight">
-              <span className="text-gray-900">U4RAD </span>
-              <span className="text-red-500">Reports Dashboard</span>
+              <span className={'text-white'}>
+                 <img
+                   src="https://u4rad.com/static/media/Logo.c9920d154c922ea9e355.png"
+                   alt="U4rad"
+                   style={{
+                     height: 50,
+                     backgroundColor: 'transparent',
+                     borderRadius: 6, // optional
+                     padding: 2        // optional (to give space around logo)
+                   }}
+                 />
+               </span>
+               
             </h1>
-            <p className="text-gray-500 mt-1">
+            {/* <p className="text-gray-500 mt-1">
               Manage, review, and download imaging reports
-            </p>
+            </p> */}
           </div>
           <button
             className="w-12 h-12 rounded-full bg-gray-800 flex items-center justify-center hover:scale-105 transform transition"
@@ -620,38 +647,27 @@ const ClientDashboard = () => {
                 />
               </label>
 
-              <label className="flex flex-col">
-                <span>Body Part Examined:</span>
-                <select
-                  name="body_part_examined"
-                  defaultValue={selectedReport.bodyPart || "NA"}
-                  className="border rounded p-2"
-                >
-                  <option value="NA" disabled>Select Body Part</option>
-                  <option value="Head">Head</option>
-                  <option value="Brain">Brain</option>
-                  <option value="Neck">Neck</option>
-                  <option value="Chest">Chest</option>
-                  <option value="Lungs">Lungs</option>
-                  <option value="Heart">Heart</option>
-                  <option value="Abdomen">Abdomen</option>
-                  <option value="Liver">Liver</option>
-                  <option value="Kidney">Kidney</option>
-                  <option value="Stomach">Stomach</option>
-                  <option value="Pelvis">Pelvis</option>
-                  <option value="Spine">Spine</option>
-                  <option value="Shoulder">Shoulder</option>
-                  <option value="Arm">Arm</option>
-                  <option value="Elbow">Elbow</option>
-                  <option value="Wrist">Wrist</option>
-                  <option value="Hand">Hand</option>
-                  <option value="Hip">Hip</option>
-                  <option value="Knee">Knee</option>
-                  <option value="Ankle">Ankle</option>
-                  <option value="Foot">Foot</option>
-                  <option value="Other">Other</option>
-                </select>
-              </label>
+             <label className="flex flex-col">
+  <span>Body Part Examined:</span>
+  <select
+    name="body_part_examined"
+    value={selectedReport?.bodyPart || ""}
+    onChange={(e) =>
+      setSelectedReport((prev) => ({ ...prev, bodyPart: e.target.value }))
+    }
+    className="border rounded p-2"
+  >
+    <option value="" disabled>
+      Select Body Part
+    </option>
+    {bodyParts.map((part) => (
+      <option key={part.id} value={part.name}>
+        {part.name}
+      </option>
+    ))}
+  </select>
+</label>
+
 
               <label className="flex flex-col">
                 <span>Referring Doctor Name:</span>

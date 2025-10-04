@@ -59,6 +59,18 @@ class ApiHandler {
     });
   }
 
+
+  static async getBodyParts() {
+    const response = await this.makeRequest("/body-parts/");
+    console.log("Fetched body parts:", response);
+    if (response.success && Array.isArray(response.data)) {
+      // Sort alphabetically by name
+      response.data.sort((a, b) => a.name.localeCompare(b.name));
+    }
+    return response;
+  }
+
+
   // Download a report file (PDF/Word)
   static async downloadReport(reportId, format = 'pdf') {
     try {

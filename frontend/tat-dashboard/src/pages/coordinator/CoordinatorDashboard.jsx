@@ -36,6 +36,10 @@ const Coordinator = () => {
   // State to store live time remaining for each patient
   const [liveTimeRemaining, setLiveTimeRemaining] = useState({});  
 
+  const user = JSON.parse(localStorage.getItem("user"))?.user;
+  const firstName = user?.first_name || "";
+  const lastName = user?.last_name || "";
+
   // Persist dark mode preference
   useEffect(() => {
     const savedDarkMode = localStorage.getItem('darkMode') === 'true';
@@ -209,6 +213,14 @@ useEffect(() => {
     );
   };
 
+
+   const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return "Good Morning";
+    else if (hour < 18) return "Good Afternoon";
+    else return "Good Evening";
+  };
+
   const handleAssignRadiologist = async () => {
     if (!selectedRadiologist || selectedPatients.length === 0) {
       alert('Please select a radiologist and at least one patient.');
@@ -248,12 +260,12 @@ useEffect(() => {
       localStorage.removeItem('darkMode');
       
       // Redirect to login page or reload
-      window.location.href = '/login';
+      window.location.href = '/';
     } catch (error) {
       console.error('Logout error:', error);
       // Fallback: clear storage and redirect anyway
       localStorage.clear();
-      window.location.href = '/login';
+      window.location.href = '/';
     }
   };
 
@@ -387,22 +399,45 @@ useEffect(() => {
               
               {/* Flags */}
               <div className="flex flex-wrap gap-1 mt-2">
-                {patient.urgent && (
-                  <span className="inline-flex items-center px-2 py-1 text-xs font-bold bg-red-100 dark:bg-red-800 text-red-800 dark:text-red-200 rounded-full">
-                    🚨 URGENT
-                  </span>
-                )}
-                {patient.vip && (
-                  <span className="inline-flex items-center px-2 py-1 text-xs font-bold bg-purple-100 dark:bg-purple-800 text-purple-800 dark:text-purple-200 rounded-full">
-                    👑 VIP
-                  </span>
-                )}
-                {patient.tat_breached && !patient.is_done && (
-                  <span className="inline-flex items-center px-2 py-1 text-xs font-bold bg-red-200 dark:bg-red-700 text-red-900 dark:text-red-100 rounded-full animate-pulse">
-                    ⚠️ OVERDUE
-                  </span>
-                )}
-              </div>
+
+  {/* 🚨 URGENT */}
+  {patient.urgent && (
+    <span className="inline-flex items-center px-2 py-1 text-xs font-bold bg-red-100 dark:bg-red-800 text-red-800 dark:text-red-200 rounded-full">
+      🚨 URGENT
+    </span>
+  )}
+
+  {/* 👑 VIP */}
+  {patient.vip && (
+    <span className="inline-flex items-center px-2 py-1 text-xs font-bold bg-purple-100 dark:bg-purple-800 text-purple-800 dark:text-purple-200 rounded-full">
+      👑 VIP
+    </span>
+  )}
+
+  {/* ⚠️ OVERDUE */}
+  {patient.tat_breached && !patient.is_done && (
+    <span className="inline-flex items-center px-2 py-1 text-xs font-bold bg-red-200 dark:bg-red-700 text-red-900 dark:text-red-100 rounded-full animate-pulse">
+      ⚠️ OVERDUE
+    </span>
+  )}
+
+  {/* 🩺 RADIOLOGIST */}
+  {patient.radiologist && patient.radiologist.length > 0 ? (
+    <span className="inline-flex items-center px-2 py-1 text-xs font-semibold bg-emerald-100 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-200 rounded-full">
+      🩺 {patient.radiologist.map((r, i) => (
+        <span key={i}>
+          Dr. {r}
+          {i !== patient.radiologist.length - 1 && ', '}
+        </span>
+      ))}
+    </span>
+  ) : (
+    <span className="inline-flex items-center px-2 py-1 text-xs font-semibold bg-amber-100 dark:bg-amber-900 text-amber-800 dark:text-amber-200 rounded-full">
+      ⚕️ Unassigned
+    </span>
+  )}
+</div>
+
             </div>
 
             {/* Card Body */}
@@ -569,13 +604,38 @@ useEffect(() => {
               <h1 className={`text-3xl font-extrabold tracking-tight ${
                 darkMode ? 'text-white' : 'text-gray-900'
               }`}>
-                <span className={darkMode ? 'text-white' : 'text-gray-900'}>U4RAD </span>
-                <span className="text-red-500">Coordinator Dashboard</span>
+                <span className={darkMode ? 'text-white' : 'text-gray-900'}>
+                <img
+                  src="https://u4rad.com/static/media/Logo.c9920d154c922ea9e355.png"
+                  alt="U4rad"
+                  style={{
+                    height: 50,
+                    backgroundColor: darkMode ? 'white' : 'transparent',
+                    borderRadius: 6, // optional
+                    padding: 2        // optional (to give space around logo)
+                  }}
+                />
+              </span>
+
+            
               </h1>
             </div>
 
             {/* Enhanced Profile Section with Dark Mode Toggle and Logout */}
             <div className="relative flex items-center space-x-3">
+          <h2
+  style={{
+    fontSize: 18,
+    margin: 0,
+    fontWeight: 600,
+    color: darkMode ? '#F9FAFB' : '#0B0B0B',
+    display: window.innerWidth <= 600 ? 'none' : 'block',
+  }}
+>
+  {getGreeting()}, Dr. {firstName} {lastName}
+</h2>
+
+
               {/* Dark Mode Toggle */}
               <button
                 onClick={() => setDarkMode(!darkMode)}
@@ -1072,7 +1132,7 @@ useEffect(() => {
         />
       </th>
       {[
-        'Patient ID', 'Patient Name', 'Age', 'Gender', 'Study Date', 'Study Time',
+        'Patient ID', 'Patient Name', 'Age', 'Gender', 'Study Date', 'Study Time','Allocated ',
         'Institution', 'Modality', 'Study Description', 'Body Part', 'Status',
         'TAT Status', 'Flags', 'Clinical History', 'Actions'
       ].map(header => (
@@ -1144,6 +1204,29 @@ useEffect(() => {
         <td className={`px-4 py-4 whitespace-nowrap text-sm ${
           darkMode ? 'text-white' : 'text-gray-900'
         }`}>{patient.study_time}</td>
+       <td
+  className={`px-4 py-4 whitespace-nowrap text-sm font-medium ${
+    patient.radiologist && patient.radiologist.length > 0
+      ? darkMode
+        ? 'text-emerald-300'
+        : 'text-emerald-700'
+      : darkMode
+      ? 'text-amber-300'
+      : 'text-amber-700'
+  }`}
+>
+  {patient.radiologist && patient.radiologist.length > 0
+    ? patient.radiologist.map((r, i) => (
+        <span key={i}>
+          Dr. {r}
+          {i !== patient.radiologist.length - 1 && ', '}
+        </span>
+      ))
+    : 'Unassigned'}
+</td>
+
+
+        
         <td className={`px-4 py-4 whitespace-nowrap text-sm font-medium ${
           darkMode ? 'text-white' : 'text-gray-900'
         }`}>{patient.institution_name}</td>
