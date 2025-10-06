@@ -334,6 +334,7 @@ const LoginPage = () => {
           >
             Login
           </motion.button>
+
         </form>
 
         {/* Extra Links */}
@@ -345,8 +346,12 @@ const LoginPage = () => {
             </span>
           </p>
         </div>
+        <br />
+
       </motion.div>
+      
     </div>
+
   );
 };
 

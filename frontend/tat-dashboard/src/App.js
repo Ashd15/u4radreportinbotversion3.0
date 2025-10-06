@@ -30,6 +30,7 @@ function App() {
         <Route path="/ecg-pdf-dashboard" element={<ECGPDFDashboard />} />
         <Route path="/SuperCoordinator" element={<SuperCoordinatorPanel />} />
         <Route path="/PatientRecordsSearch" element={<PatientRecordsSearch />} />
+        <Route path="*" element={<LoginPage />} />
       </Routes>
     </Router>
   );

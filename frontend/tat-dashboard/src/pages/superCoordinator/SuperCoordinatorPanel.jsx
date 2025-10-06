@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Users, Plus, Edit, Eye, Grid, List, Sun, Moon, Save, X, Check, AlertTriangle } from 'lucide-react';
 import ApiHandlerSuperCoordinator from './apiHandlerSuperCoordinator';
 import { useNavigate } from 'react-router-dom';
+import api from '../login/apilogin';
+
 
 
 // Main SuperCoordinator Panel Component
@@ -53,20 +55,9 @@ const SuperCoordinatorPanel = () => {
       setClients(clientsData);
       setError(null);
     } catch (err) {
-      setError('Failed to load clients. Please check if the API server is running.');
+      setError('');
       // Mock data for demonstration when API is not available
-      setClients([
-        {
-          id: 1,
-          name: "Demo Client",
-          email: "demo@example.com",
-          institutions: [{ id: 1, name: "Demo Institution" }],
-          tbclient: false,
-          can_edit_patient_name: true,
-          can_edit_age: true,
-          user: 1
-        }
-      ]);
+     
     } finally {
       setLoading(false);
     }
@@ -140,6 +131,90 @@ const SuperCoordinatorPanel = () => {
     });
   };
 
+
+
+const Header = ({ onSidebarToggle, darkMode }) => {
+  const navigate = useNavigate();
+
+  const user = JSON.parse(localStorage.getItem("user"))?.user;
+  const firstName = user?.first_name || "";
+  const lastName = user?.last_name || "";
+
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return "Good Morning";
+    else if (hour < 18) return "Good Afternoon";
+    else return "Good Evening";
+  };
+
+  const handleLogout = async () => {
+    try {
+      await api.post("logout/");
+      localStorage.removeItem("user");
+      navigate("/");
+    } catch (err) {
+      console.error("Logout failed:", err.response ? err.response.data : err);
+    }
+  };
+
+  const headerBgClass = darkMode ? "bg-gray-900" : "bg-white";
+  const headerTextClass = darkMode ? "text-white" : "text-gray-900";
+
+  return (
+    <div
+      className={`${headerBgClass} ${headerTextClass} flex justify-between items-center p-5 border-b ${
+        darkMode ? "border-gray-700" : "border-gray-300"
+      }`}
+    >
+      <h1 className={`text-3xl font-extrabold tracking-tight ${
+                darkMode ? 'text-white' : 'text-gray-900'
+              }`}>
+                <span className={darkMode ? 'text-white' : 'text-gray-900'}>
+                <img
+                  src="https://u4rad.com/static/media/Logo.c9920d154c922ea9e355.png"
+                  alt="U4rad"
+                  style={{
+                    height: 50,
+                    backgroundColor: darkMode ? 'white' : 'transparent',
+                    borderRadius: 6, // optional
+                    padding: 2        // optional (to give space around logo)
+                  }}
+                />
+              </span>
+
+            
+              </h1>
+
+      <div className="flex items-center gap-5">
+        <div
+          onClick={onSidebarToggle}
+          className="flex gap-3 items-center cursor-pointer"
+        >
+          <h2 className="text-lg font-semibold">{getGreeting()}, Dr. {firstName} {lastName}</h2>
+          <img
+            src="https://thumbs.dreamstime.com/z/portrait-confident-young-doctor-white-background-smiling-31417037.jpg"
+            alt="Profile"
+            style={{ width: 40, borderRadius: "50%" }}
+          />
+        </div>
+
+        <button
+          onClick={handleLogout}
+          className={`px-4 py-2 rounded font-bold transition-colors ${
+            darkMode
+              ? "bg-red-600 hover:bg-red-500 text-white"
+              : "bg-red-500 hover:bg-red-400 text-white"
+          }`}
+        >
+          Logout
+        </button>
+      </div>
+    </div>
+  );
+};
+
+
+
   const addInstitutionField = () => {
     setFormData({
       ...formData,
@@ -185,6 +260,8 @@ const SuperCoordinatorPanel = () => {
     <div className={`min-h-screen ${bgClass} ${textClass} transition-colors duration-300`}>
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
+        <Header onSidebarToggle={() => {}} darkMode={darkMode} />
+        
         <div className={`${cardBgClass} rounded-lg shadow-lg p-6 mb-6 border ${borderClass}`}>
           <div className="flex justify-between items-center flex-wrap gap-4">
             <div className="flex items-center gap-3">

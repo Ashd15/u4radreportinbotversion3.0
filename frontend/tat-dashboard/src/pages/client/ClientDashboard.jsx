@@ -10,66 +10,68 @@ import {
   MessageCircle,
   Edit3,
   X,
+  LogOut ,
 } from "lucide-react";
 import ApiHandler from "./apiHandler";
+import ClientSidebar from "./ClientSidebar";
 
-const ClientSidebar = ({ summary }) => (
-  <div className="w-64 bg-white shadow-lg p-4">
-    <h3 className="font-bold text-lg mb-4">Dashboard Summary</h3>
-    <div className="space-y-2 text-sm">
-      <div className="flex justify-between">
-        <span>CT:</span>
-        <span className="font-semibold text-blue-600">{summary.ct}</span>
-      </div>
-      <div className="flex justify-between">
-        <span>MRI:</span>
-        <span className="font-semibold text-green-600">{summary.mri}</span>
-      </div>
-      <div className="flex justify-between">
-        <span>X-Ray:</span>
-        <span className="font-semibold text-purple-600">{summary.xray}</span>
-      </div>
-      <hr className="my-2" />
-      <div className="flex justify-between">
-        <span>Total Sent:</span>
-        <span className="font-semibold text-gray-800">{summary.totalSent}</span>
-      </div>
-      <div className="flex justify-between">
-        <span>Total Reported:</span>
-        <span className="font-semibold text-green-600">{summary.totalReported}</span>
-      </div>
-      <div className="flex justify-between">
-        <span>Total Pending:</span>
-        <span className="font-semibold text-yellow-600">{summary.totalPending}</span>
-      </div>
-      <hr className="my-2" />
-      <div className="flex justify-between">
-        <span>Total Wallet:</span>
-        <span className="font-semibold text-emerald-600">${summary.totalWallet}</span>
-      </div>
-      <div className="flex justify-between">
-        <span>Money Left:</span>
-        <span className="font-semibold text-red-600">${summary.moneyLeft}</span>
-      </div>
+// const ClientSidebar = ({ summary }) => (
+//   <div className="w-64 bg-white shadow-lg p-4">
+//     <h3 className="font-bold text-lg mb-4">Dashboard Summary</h3>
+//     <div className="space-y-2 text-sm">
+//       <div className="flex justify-between">
+//         <span>CT:</span>
+//         <span className="font-semibold text-blue-600">{summary.ct}</span>
+//       </div>
+//       <div className="flex justify-between">
+//         <span>MRI:</span>
+//         <span className="font-semibold text-green-600">{summary.mri}</span>
+//       </div>
+//       <div className="flex justify-between">
+//         <span>X-Ray:</span>
+//         <span className="font-semibold text-purple-600">{summary.xray}</span>
+//       </div>
+//       <hr className="my-2" />
+//       <div className="flex justify-between">
+//         <span>Total Sent:</span>
+//         <span className="font-semibold text-gray-800">{summary.totalSent}</span>
+//       </div>
+//       <div className="flex justify-between">
+//         <span>Total Reported:</span>
+//         <span className="font-semibold text-green-600">{summary.totalReported}</span>
+//       </div>
+//       <div className="flex justify-between">
+//         <span>Total Pending:</span>
+//         <span className="font-semibold text-yellow-600">{summary.totalPending}</span>
+//       </div>
+//       <hr className="my-2" />
+//       <div className="flex justify-between">
+//         <span>Total Wallet:</span>
+//         <span className="font-semibold text-emerald-600">${summary.totalWallet}</span>
+//       </div>
+//       <div className="flex justify-between">
+//         <span>Money Left:</span>
+//         <span className="font-semibold text-red-600">${summary.moneyLeft}</span>
+//       </div>
       
-      {/* Progress bars for visual representation */}
-      <div className="mt-4 space-y-2">
-        <div>
-          <div className="text-xs text-gray-600 mb-1">Completion Rate</div>
-          <div className="w-full bg-gray-200 rounded-full h-2">
-            <div 
-              className="bg-green-500 h-2 rounded-full" 
-              style={{ width: `${summary.totalSent > 0 ? (summary.totalReported / summary.totalSent) * 100 : 0}%` }}
-            ></div>
-          </div>
-          <div className="text-xs text-gray-500 mt-1">
-            {summary.totalSent > 0 ? Math.round((summary.totalReported / summary.totalSent) * 100) : 0}%
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-);
+//       {/* Progress bars for visual representation */}
+//       <div className="mt-4 space-y-2">
+//         <div>
+//           <div className="text-xs text-gray-600 mb-1">Completion Rate</div>
+//           <div className="w-full bg-gray-200 rounded-full h-2">
+//             <div 
+//               className="bg-green-500 h-2 rounded-full" 
+//               style={{ width: `${summary.totalSent > 0 ? (summary.totalReported / summary.totalSent) * 100 : 0}%` }}
+//             ></div>
+//           </div>
+//           <div className="text-xs text-gray-500 mt-1">
+//             {summary.totalSent > 0 ? Math.round((summary.totalReported / summary.totalSent) * 100) : 0}%
+//           </div>
+//         </div>
+//       </div>
+//     </div>
+//   </div>
+// );
 
 const ClientDashboard = () => {
   const [showSidebar, setShowSidebar] = useState(false);
@@ -81,6 +83,9 @@ const ClientDashboard = () => {
   const [uploadingFile, setUploadingFile] = useState(false);
   const [bodyParts, setBodyParts] = useState([]);
   const reportsPerPage = 50;
+  const user = JSON.parse(localStorage.getItem("user"))?.user;
+  const firstName = user?.first_name || "";
+  const lastName = user?.last_name || "";
 
   const [filters, setFilters] = useState({
     name: "",
@@ -147,7 +152,7 @@ const fetchBodyParts = async () => {
           inhousePatient: item.inhouse_patient
         }));
         setReports(transformedData);
-        console.log("Fetched Reports:", transformedData);
+        
       } else {
         setError(response.error || "Failed to fetch reports");
       }
@@ -212,7 +217,7 @@ const fetchBodyParts = async () => {
         imaging_views: reportData.imaging_views
       };
       
-      console.log("Sending API data:", apiData); // Debug log
+      
       
       const response = await ApiHandler.updateDicomReport(selectedReport.id, apiData);
 
@@ -263,6 +268,13 @@ const fetchBodyParts = async () => {
   );
 
   const totalPages = Math.ceil(filteredReports.length / reportsPerPage);
+
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return "Good Morning";
+    else if (hour < 18) return "Good Afternoon";
+    else return "Good Evening";
+  };
 
   const handlePageChange = (page) => {
     setCurrentPage(page);
@@ -321,16 +333,44 @@ const fetchBodyParts = async () => {
                </span>
                
             </h1>
-            {/* <p className="text-gray-500 mt-1">
-              Manage, review, and download imaging reports
-            </p> */}
+          
           </div>
-          <button
-            className="w-12 h-12 rounded-full bg-gray-800 flex items-center justify-center hover:scale-105 transform transition"
-            onClick={() => setShowSidebar(!showSidebar)}
-          >
-            <User className="w-6 h-6 text-white" />
-          </button>
+          <div className="flex items-center gap-3">
+              <h2
+  style={{
+    fontSize: 18,
+    margin: 0,
+    fontWeight: 600,
+    color:'#0B0B0B',
+    display: window.innerWidth <= 600 ? 'none' : 'block',
+  }}
+>
+  {getGreeting()}, {firstName} {lastName}
+</h2>
+    {/* Logout Button */}
+    <button
+      onClick={() => {
+        // Clear stored tokens or user data
+        localStorage.removeItem("token");
+        sessionStorage.clear();
+
+        // Redirect to login
+        window.location.href = "/login";
+      }}
+      className="flex items-center gap-2 px-3 py-2 bg-red-600 text-white rounded-lg shadow-md hover:bg-red-700 transition"
+    >
+      <LogOut className="w-5 h-5" />
+      <span className="hidden sm:inline font-medium">Logout</span>
+    </button>
+
+    {/* Sidebar toggle button */}
+    <button
+      className="w-12 h-12 rounded-full bg-gray-800 flex items-center justify-center hover:scale-105 transform transition"
+      onClick={() => setShowSidebar(!showSidebar)}
+    >
+      <User className="w-6 h-6 text-white" />
+    </button>
+  </div>
         </div>
 
         {/* Filters */}
