@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import CoordinatorHandler from "./CoordinatorHandler";
 import Select from "react-select";
+import { useNavigate } from 'react-router-dom';
 
 const Coordinator = () => {
   const [coordinators, setCoordinators] = useState([]);
@@ -16,6 +17,7 @@ const Coordinator = () => {
   const [assignMode, setAssignMode] = useState('assign');
   const [searchTerm, setSearchTerm] = useState('');
   const [viewMode, setViewMode] = useState('table');
+    const navigate = useNavigate();
   
   // New states for dark mode and logout
   const [darkMode, setDarkMode] = useState(false);
@@ -1336,9 +1338,18 @@ useEffect(() => {
         </td>
         <td className="px-4 py-4 whitespace-nowrap text-sm">
           <div className="flex space-x-2">
-           <button className="inline-flex items-center px-3 py-1 rounded-lg text-xs font-medium bg-gradient-to-r from-blue-100 to-blue-200 text-blue-700 hover:from-blue-200 hover:to-blue-300 border border-blue-300 transition-all duration-200 transform hover:scale-105 dark:from-blue-900/30 dark:to-blue-800/30 dark:text-blue-200 dark:hover:from-blue-800 dark:hover:to-blue-700 dark:border-blue-600">
+           {/* <button className="inline-flex items-center px-3 py-1 rounded-lg text-xs font-medium bg-gradient-to-r from-blue-100 to-blue-200 text-blue-700 hover:from-blue-200 hover:to-blue-300 border border-blue-300 transition-all duration-200 transform hover:scale-105 dark:from-blue-900/30 dark:to-blue-800/30 dark:text-blue-200 dark:hover:from-blue-800 dark:hover:to-blue-700 dark:border-blue-600">
               👁️ View
-            </button>
+            </button> */}
+                       <button
+  onClick={(e) => {
+    e.stopPropagation();
+    navigate(`/viewer?id=${patient.id}`);
+  }}
+  className="inline-flex items-center px-3 py-1 rounded-lg text-xs font-medium bg-gradient-to-r from-blue-100 to-blue-200 text-blue-700 hover:from-blue-200 hover:to-blue-300 border border-blue-300 transition-all duration-200 transform hover:scale-105 dark:from-blue-900/30 dark:to-blue-800/30 dark:text-blue-200 dark:hover:from-blue-800 dark:hover:to-blue-700 dark:border-blue-600"
+>
+  👁️ View
+</button>
             <button 
               className="inline-flex items-center px-3 py-1 rounded-lg text-xs font-medium bg-gradient-to-r from-emerald-100 to-green-200 dark:from-emerald-900/30 dark:to-green-800/30 text-emerald-700 dark:text-emerald-200 hover:from-emerald-200 hover:to-green-300 dark:hover:from-emerald-800 dark:hover:to-green-700 border border-emerald-300 dark:border-emerald-600 transition-all duration-200 transform hover:scale-105"
               onClick={() => setSelectedReport(patient)}  

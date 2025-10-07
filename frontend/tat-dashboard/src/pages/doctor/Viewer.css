@@ -126,10 +126,31 @@
   color: #9CA3AF;
   margin-bottom: 0.2rem;
 }
-
+/* 
 .history-notes {
   margin-bottom: 0.5rem;
+} */
+
+.history-notes {
+  max-height: 300px;       /* maximum height of the details section */
+  min-height: 100px;       /* optional: minimum height if you want */
+  overflow-y: auto;        /* vertical scroll if content exceeds */
+  padding: 8px;
+  border: 1px solid #ddd;  /* optional border */
+  border-radius: 4px;
+  background-color: #2A2A2E;
 }
+
+/* Optional: smooth scroll for better UX */
+.history-notes::-webkit-scrollbar {
+  width: 6px;
+}
+
+.history-notes::-webkit-scrollbar-thumb {
+  background-color: #6466F1;
+  border-radius: 3px;
+}
+
 
 .history-header {
   display: flex;

@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 
 import "../doctor/Viewer.css";
+import { FiFile } from "react-icons/fi"; // File icon from react-icons
 
 import * as cornerstone from '@cornerstonejs/core';
 import * as cornerstoneTools from '@cornerstonejs/tools';
@@ -58,6 +59,9 @@ class Viewer extends Component {
       showReportEditor: false,
       studyData: null,
       cornerstoneInitialized: false,
+      patientData: null,
+      loading: true,
+      error: null
     };
     
     this.renderingEngineRef = createRef();
@@ -85,6 +89,48 @@ class Viewer extends Component {
     this.viewportSettings = this.viewportSettings.bind(this);
     this.layoutSettings = this.layoutSettings.bind(this);
     this.openImageInViewport = this.openImageInViewport.bind(this);
+ 
+  }
+
+  // Add this new method to fetch patient data
+  async fetchPatientData() {
+    try {
+      // Get the ID from URL parameters
+      const urlParams = new URLSearchParams(window.location.search);
+      const patientId = urlParams.get('id');
+      
+      if (!patientId) {
+        throw new Error('No patient ID provided in URL');
+      }
+
+      const response = await fetch("http://localhost:8000/api/fetch-dicom/", {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ id: patientId })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Server error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      this.setState({ 
+        patientData: data,
+        loading: false 
+      });
+
+      return data;
+
+    } catch (error) {
+      console.error("Error fetching patient data:", error);
+      this.setState({ 
+        error: error.message,
+        loading: false 
+      });
+      return null;
+    }
   }
 
   toggleDetails = () => {
@@ -275,6 +321,18 @@ class Viewer extends Component {
         }
       }, 60000);
 
+      // Use the patient data from state instead of fetching again
+      const { patientData } = this.state;
+      
+      if (!patientData) {
+        throw new Error('Patient data not available');
+      }
+
+      const { study_instance_uid } = patientData;
+
+      // Since we don't have series data from the new API, we'll need to adapt
+      // For now, let's assume we need to fetch series data separately or modify the API
+      // This part needs to be adjusted based on your actual data structure
       const response = await fetch("http://127.0.0.1:8000/api/serverdata/", {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -538,9 +596,19 @@ class Viewer extends Component {
 
   async componentDidMount() {
     try {
+      // Fetch patient data first
+      const patientData = await this.fetchPatientData();
+      
+      if (!patientData) {
+        console.error("Failed to fetch patient data");
+        return;
+      }
+      console.log("Patient Data:", patientData);
+
       await this.initializeCornerstone();
       
-      const studyid = "3c475322-dd16d05c-ceaf7688-4d64be59-57de70f0";
+      // Use study_id from patient data instead of hardcoded value
+      const studyid = patientData.study_id || "3c475322-dd16d05c-ceaf7688-4d64be59-57de70f0";
 
       // Setting cache size
       cornerstone.cache.setMaxCacheSize(32000000000);
@@ -696,6 +764,10 @@ class Viewer extends Component {
 
     } catch (error) {
       console.error("Error in componentDidMount:", error);
+      this.setState({ 
+        error: error.message,
+        loading: false 
+      });
     }
   }
 
@@ -989,6 +1061,7 @@ class Viewer extends Component {
     });
   };
 
+
   componentWillUnmount() {
     console.log("Component unmounting - cleaning up resources");
     
@@ -1088,7 +1161,46 @@ class Viewer extends Component {
   }
 
   render() {
-    const { showDetails, status, showReportEditor, studyData } = this.state;
+    const { showDetails, status, showReportEditor, patientData, loading, error } = this.state;
+
+    // Show loading state
+    if (loading) {
+      return (
+        <div className="body">
+          <div className="page-content">
+            <div className="loading-container">
+              <div className="loading-spinner"></div>
+              <p>Loading patient data...</p>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // Show error state
+    if (error) {
+      return (
+        <div className="body">
+          <div className="page-content">
+            <div className="error-container">
+              <AlertCircle className="error-icon" size={48} />
+              <h2>Error Loading Patient Data</h2>
+              <p>{error}</p>
+              <button onClick={() => window.location.reload()} className="retry-btn">
+                Retry
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // Use patient data from API or fallback to defaults
+    const patientName = patientData?.patient_name || "Patient Name";
+    const patientId = patientData?.patient_id || "MRN-XXXX-XXXX";
+    const age = patientData?.age || "Age";
+    const gender = patientData?.gender || "Gender";
+    const studyDate = patientData?.study_date || "2024-01-15";
 
     return (
       <div className="body">
@@ -1102,50 +1214,91 @@ class Viewer extends Component {
               <span className="white-text">&nbsp;reporting platform</span>
             </h1>
 
-            <div className="user-info" onClick={this.toggleDetails}>
-              <div className="user-avatar">
-                <User size={20} />
-              </div>
-              <div>
-                <h2 className="user-name">Sarah Johnson</h2>
-                <p className="user-detail">
-                  <span className="user-mrn">MRN–2024–0156</span> | 
-                  Age: <span className="white-text">45y Female</span> | 
-                  Study: <span className="white-text">2024-01-15</span>
-                </p>
-              </div>
-            </div>
+<div className="user-info" onClick={this.toggleDetails}>
+  <div className="user-avatar">
+    <User size={20} />
+  </div>
+  <div>
+    <h2 className="user-name">{patientName}</h2>
+    <p className="user-detail">
+      <span className="user-mrn">MRN: {patientId}</span> |{" "}
+      Age: <span className="white-text">{age} {gender}</span> |{" "}
+      Study: <span className="white-text">{studyDate}</span>
+    </p>
+  </div>
+</div>
 
-            {showDetails && (
-              <>
-                <div className="history-notes">
-                  <div className="history-header">
-                    <h3>History Notes</h3>
-                    <span className="history-count">3</span>
-                  </div>
-                  <div className="history-content">
-                    <p className="history-date">
-                      report <span className="white-text">2024-01-10</span>
-                    </p>
-                    <p className="history-doctor">Dr. Chen</p>
-                    <p className="history-text">
-                      No acute abnormalities. Small pulmonary nodule in RUL, stable.
-                      Follow-up recommended in 6 months.
-                    </p>
-                  </div>
-                </div>
-              </>
-            )}
+{showDetails && (
+  <div className="history-notes">
+    {/* Notes */}
+    {patientData?.notes && (
+      <div className="history-content">
+        <h3>Notes</h3>
+        <p className="history-text">{patientData.notes}</p>
+      </div>
+    )}
+
+    {/* History Files */}
+    {patientData?.history_files?.length > 0 && (
+      <div className="history-content">
+        <h3>History Files</h3>
+        {patientData.history_files.map((file, index) => (
+          <p key={index} className="history-text flex items-center gap-2">
+            <FiFile size={16} /> {/* File icon */}
+            <a href={file} target="_blank" rel="noopener noreferrer">
+              {file.split("/").pop()}
+            </a>
+          </p>
+        ))}
+      </div>
+    )}
+
+    {/* Patient Reports */}
+    <div className="history-content">
+      <h3>Reports</h3>
+      {patientData?.patient_reports?.length > 0 ? (
+        patientData.patient_reports.map((report, index) => (
+          <div key={index} className="history-item flex items-center gap-2">
+            <FiFile size={16} /> {/* File icon */}
+            <div>
+              <p className="history-date">
+                Report Date:{" "}
+                <span className="white-text">
+                  {new Date(report.uploaded_at).toLocaleDateString()}
+                </span>
+              </p>
+              <p className="history-text">{report.report_title}</p>
+              <a
+                href={report.report_file}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="history-link"
+              >
+                View Report
+              </a>
+            </div>
+          </div>
+        ))
+      ) : (
+        <p className="history-text">No previous reports available</p>
+      )}
+    </div>
+  </div>
+)}
+            
 
             <div className="images-section">
               <div className="images-header">
                 <h3>Images</h3>
-                <span className="images-count">8</span>
+                <span className="images-count">
+                  {patientData?.modality ? `${patientData.modality} Study` : 'Study'}
+                </span>
               </div>
               <div className="previewTab" id="previewTab"></div>
             </div>
           </div>
 
+          {/* Rest of the component remains the same */}
           {/* Cornerstone Viewer */}
           <div className="cornerstone-container">
             <div className="viewer-container">
@@ -1224,9 +1377,7 @@ class Viewer extends Component {
                 >
                   Magnify
                 </button>
-                <button className='tool-btn' value='Pan' onClick={e => this.toggleTool(e.target.value)}>
-                  Pan
-                </button>
+            
                 <button className='tool-btn' value='Length' onClick={e => this.toggleTool(e.target.value)}>
                   📐 Measure
                 </button>
@@ -1270,8 +1421,41 @@ class Viewer extends Component {
                   <option value="sagittal">Sagittal</option>
                   <option value="coronal">Coronal</option>
                 </select>
+  
+<select
+  id="orientation"
+  className="tool-btn measurement-dropdown"
+  defaultValue="" // 👈 this replaces `selected`
+  onChange={e => this.orientationSettings(e, this.selected_viewport)}
+>
+  <option value="" disabled hidden>
+    orientation
+  </option>
+  <option value="Rleft">Rotate Left</option>
+  <option value="Rright">Rotate Right</option>
+  <option value="Hflip">Horizontal Flip</option>
+  <option value="Vflip">Vertical Flip</option>
+</select>
 
                 <select
+                  id="layout"
+                  className="tool-btn measurement-dropdown"
+                  onChange={(e) => {
+                    this.layoutSettings(e);
+                    e.target.selectedIndex = 0;
+                  }}
+                >
+                  <option value="" disabled defaultValue hidden>
+                    Layout ▼
+                  </option>
+                  <option value="one">1x1</option>
+                  <option value="two">1x2</option>
+                  <option value="three">1x3</option>
+                  <option value="four">2x2</option>
+                </select>
+
+
+                  <select
                   id="measurement"
                   className="tool-btn measurement-dropdown"
                   onChange={(e) => {
@@ -1290,23 +1474,10 @@ class Viewer extends Component {
                   <option value="Probe">🔍 Pixel Value</option>
                   <option value="Crosshairs">➕ Crosshairs</option>
                   <option value="Reset">↩️ Reset</option>
-                </select>
-                
-                <select
-                  id="layout"
-                  className="tool-btn measurement-dropdown"
-                  onChange={(e) => {
-                    this.layoutSettings(e);
-                    e.target.selectedIndex = 0;
-                  }}
-                >
-                  <option value="" disabled defaultValue hidden>
-                    Layout ▼
-                  </option>
-                  <option value="one">1x1</option>
-                  <option value="two">1x2</option>
-                  <option value="three">1x3</option>
-                  <option value="four">2x2</option>
+                  <option value="Wheel">🖱️ Stack Scroll</option>
+                  <option value="Wwwc">☀️ Window Level</option>
+                  <option value="Pan">✋ Pan</option>
+    
                 </select>
               </div>
             </div>
