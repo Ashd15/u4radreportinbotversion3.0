@@ -17,6 +17,7 @@ const Coordinator = () => {
   const [assignMode, setAssignMode] = useState('assign');
   const [searchTerm, setSearchTerm] = useState('');
   const [viewMode, setViewMode] = useState('table');
+  const [showInstitutionDropdown, setShowInstitutionDropdown] = useState(false);
     const navigate = useNavigate();
   
   // New states for dark mode and logout
@@ -30,7 +31,8 @@ const Coordinator = () => {
     clinicalHistory: '',
     status: '',
     modality: '',
-    studyDate: ''
+    studyDate: '',
+    institution: ''
   });
 
   const [dateFilter, setDateFilter] = useState('');
@@ -179,23 +181,34 @@ useEffect(() => {
     if (filters.studyDate) {
       filtered = filtered.filter(p => p.study_date === filters.studyDate);
     }
+    if (filters.institution) {
+      filtered = filtered.filter(p => p.institution_name === filters.institution);
+    }
 
     filtered.sort((a, b) => {
-      const aUrgentPending = a.urgent && !a.is_done;
-      const bUrgentPending = b.urgent && !b.is_done;
+      // Priority 1: Urgent AND not reported (not done)
+      const aUrgentUnreported = a.urgent && !a.is_done;
+      const bUrgentUnreported = b.urgent && !b.is_done;
       
-      if (aUrgentPending && !bUrgentPending) return -1;
-      if (!aUrgentPending && bUrgentPending) return 1;
+      if (aUrgentUnreported && !bUrgentUnreported) return -1;
+      if (!aUrgentUnreported && bUrgentUnreported) return 1;
       
-      // Secondary sort: overdue cases
+      // Priority 2: Overdue cases (for remaining non-urgent patients)
       const aOverdue = a.tat_breached && !a.is_done;
       const bOverdue = b.tat_breached && !b.is_done;
       
       if (aOverdue && !bOverdue) return -1;
       if (!aOverdue && bOverdue) return 1;
       
-      return 0;
-  });
+      // Priority 3: Reverse chronological order (latest first) for all remaining
+      // Assuming patients have an 'id' that increases with time, or use 'study_date'
+      return b.id - a.id; // Latest patient IDs come first
+      
+      // Alternative: If you want to sort by study_date instead:
+      // const dateA = new Date(a.study_date + ' ' + (a.study_time || '00:00:00'));
+      // const dateB = new Date(b.study_date + ' ' + (b.study_time || '00:00:00'));
+      // return dateB - dateA;
+    });
 
     setFilteredPatients(filtered);
   }, [filters, patients, searchTerm]);
@@ -625,17 +638,17 @@ useEffect(() => {
 
             {/* Enhanced Profile Section with Dark Mode Toggle and Logout */}
             <div className="relative flex items-center space-x-3">
-          <h2
-  style={{
-    fontSize: 18,
-    margin: 0,
-    fontWeight: 600,
-    color: darkMode ? '#F9FAFB' : '#0B0B0B',
-    display: window.innerWidth <= 600 ? 'none' : 'block',
-  }}
->
-  {getGreeting()}, Dr. {firstName} {lastName}
-</h2>
+              <h2
+               style={{
+                 fontSize: 18,
+                 margin: 0,
+                 fontWeight: 600,
+                 color: darkMode ? '#F9FAFB' : '#0B0B0B',
+                 display: window.innerWidth <= 600 ? 'none' : 'block',
+               }}
+             >
+               {getGreeting()}, Dr. {firstName} {lastName}
+             </h2>
 
 
               {/* Dark Mode Toggle */}
@@ -1021,7 +1034,7 @@ useEffect(() => {
         
             <button
               onClick={() => {
-                setFilters({bodyPart: '', allocated: '', clinicalHistory: '', status: '', modality: ''});
+                setFilters({bodyPart: '', allocated: '', clinicalHistory: '', status: '', modality: '',institution: '', studyDate: ''});
                 setSearchTerm(''); // Clear search as well
               }}
               className="px-4 py-2 bg-gradient-to-r from-gray-600 to-gray-700 text-white rounded-lg font-medium transition-all duration-200 hover:from-gray-700 hover:to-gray-800 transform hover:scale-105 shadow-lg text-sm"
@@ -1030,82 +1043,82 @@ useEffect(() => {
             </button>
 
             <div className="flex items-center gap-3">
-  {/* View Toggle */}
-  <div className={`flex rounded-lg p-1 ${
-    darkMode ? 'bg-gray-600' : 'bg-gray-100'
-  }`}>
-    <button
-      onClick={() => setViewMode('table')}
-      className={`px-4 py-2 rounded-md font-medium transition-all duration-200 ${
-        viewMode === 'table'
-          ? 'bg-blue-500 text-white shadow-md'
-          : darkMode ? 'text-gray-300 hover:text-white' : 'text-gray-600 hover:text-gray-900'
-      }`}
-    >
-      📊 Table
-    </button>
-    <button
-      onClick={() => setViewMode('grid')}
-      className={`px-4 py-2 rounded-md font-medium transition-all duration-200 ${
-        viewMode === 'grid'
-          ? 'bg-blue-500 text-white shadow-md'
-          : darkMode ? 'text-gray-300 hover:text-white' : 'text-gray-600 hover:text-gray-900'
-      }`}
-    >
-      🔳 Grid
-    </button>
-  </div>
-
-  {/* Study Date Filter */}
-  <div className="relative">
-    <button
-      onClick={() => setShowDatePicker(!showDatePicker)}
-      className={`flex items-center space-x-2 px-4 py-2 rounded-lg font-medium transition-all duration-200 ${
-        filters.studyDate
-          ? 'bg-blue-500 text-white shadow-md'
-          : darkMode 
-            ? 'bg-gray-600 text-gray-300 hover:bg-gray-500' 
-            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-      }`}
-    >
-      <span>📅</span>
-      <span className="text-sm">
-        {filters.studyDate ? filters.studyDate : ""}
-      </span>
-    </button>
-    
-    {showDatePicker && (
-      <div className={`absolute top-full right-0 mt-2 z-50 p-3 rounded-lg shadow-xl border ${
-        darkMode ? 'bg-gray-700 border-gray-600' : 'bg-white border-gray-200'
-      }`} style={{ minWidth: '200px' }}>
-        <input
-          type="date"
-          value={filters.studyDate}
-          onChange={(e) => {
-            handleFilterChange('studyDate', e.target.value);
-            setShowDatePicker(false);
-          }}
-          className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-            darkMode 
-              ? 'bg-gray-600 border-gray-500 text-white' 
-              : 'border-gray-300'
-          }`}
-        />
-        {filters.studyDate && (
-          <button
-            onClick={() => {
-              handleFilterChange('studyDate', '');
-              setShowDatePicker(false);
-            }}
-            className="mt-2 w-full px-3 py-1 text-xs bg-red-500 text-white rounded hover:bg-red-600 transition-colors"
-          >
-            Clear Date
-          </button>
-        )}
-      </div>
-    )}
-  </div>
-</div>
+             {/* View Toggle */}
+             <div className={`flex rounded-lg p-1 ${
+               darkMode ? 'bg-gray-600' : 'bg-gray-100'
+             }`}>
+               <button
+                 onClick={() => setViewMode('table')}
+                 className={`px-4 py-2 rounded-md font-medium transition-all duration-200 ${
+                   viewMode === 'table'
+                     ? 'bg-blue-500 text-white shadow-md'
+                     : darkMode ? 'text-gray-300 hover:text-white' : 'text-gray-600 hover:text-gray-900'
+                 }`}
+               >
+                 📊 Table
+               </button>
+               <button
+                 onClick={() => setViewMode('grid')}
+                 className={`px-4 py-2 rounded-md font-medium transition-all duration-200 ${
+                   viewMode === 'grid'
+                     ? 'bg-blue-500 text-white shadow-md'
+                     : darkMode ? 'text-gray-300 hover:text-white' : 'text-gray-600 hover:text-gray-900'
+                 }`}
+               >
+                 🔳 Grid
+               </button>
+             </div>
+           
+             {/* Study Date Filter */}
+             <div className="relative">
+               <button
+                 onClick={() => setShowDatePicker(!showDatePicker)}
+                 className={`flex items-center space-x-2 px-4 py-2 rounded-lg font-medium transition-all duration-200 ${
+                   filters.studyDate
+                     ? 'bg-blue-500 text-white shadow-md'
+                     : darkMode 
+                       ? 'bg-gray-600 text-gray-300 hover:bg-gray-500' 
+                       : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                 }`}
+               >
+                 <span>📅</span>
+                 <span className="text-sm">
+                   {filters.studyDate ? filters.studyDate : ""}
+                 </span>
+               </button>
+               
+               {showDatePicker && (
+                 <div className={`absolute top-full right-0 mt-2 z-50 p-3 rounded-lg shadow-xl border ${
+                   darkMode ? 'bg-gray-700 border-gray-600' : 'bg-white border-gray-200'
+                 }`} style={{ minWidth: '200px' }}>
+                   <input
+                     type="date"
+                     value={filters.studyDate}
+                     onChange={(e) => {
+                       handleFilterChange('studyDate', e.target.value);
+                       setShowDatePicker(false);
+                     }}
+                     className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                       darkMode 
+                         ? 'bg-gray-600 border-gray-500 text-white' 
+                         : 'border-gray-300'
+                     }`}
+                   />
+                   {filters.studyDate && (
+                     <button
+                       onClick={() => {
+                         handleFilterChange('studyDate', '');
+                         setShowDatePicker(false);
+                       }}
+                       className="mt-2 w-full px-3 py-1 text-xs bg-red-500 text-white rounded hover:bg-red-600 transition-colors"
+                     >
+                       Clear Date
+                     </button>
+                   )}
+                 </div>
+               )}
+             </div>
+           </div>
           </div>
         </div>
 
@@ -1120,7 +1133,7 @@ useEffect(() => {
     darkMode ? 'from-gray-700 to-gray-800' : 'from-gray-50 to-slate-100'
   }`}>
     <tr>
-      <th className="px-4 py-4 text-left text-xs font-bold uppercase tracking-wider">
+      <th className="px-4 py-4 text-left text-xs font-bold uppercase tracking-wider" >
         <input
           type="checkbox"
           onChange={(e) => {
@@ -1132,18 +1145,94 @@ useEffect(() => {
           }}
           className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 w-4 h-4"
         />
-      </th>
-      {[
-        'Patient ID', 'Patient Name', 'Age', 'Gender', 'Study Date', 'Study Time','Allocated ',
-        'Institution', 'Modality', 'Study Description', 'Body Part', 'Status',
-        'TAT Status', 'Flags', 'Clinical History', 'Actions'
-      ].map(header => (
-        <th key={header} className={`px-4 py-4 text-left text-xs font-bold uppercase tracking-wider ${
-          darkMode ? 'text-gray-300' : 'text-gray-700'
-        }`}>
-          {header}
-        </th>
-      ))}
+     </th>
+{[
+  'Patient ID', 'Patient Name', 'Age', 'Gender', 'Study Date', 'Study Time','Allocated ',
+  'Institution', 'Modality', 'Study Description', 'Body Part', 'Status',
+  'TAT Status', 'Flags', 'Clinical History', 'Actions'
+].map(header => (
+  <th key={header} className={`px-4 py-4 text-left text-xs font-bold uppercase tracking-wider ${
+    darkMode ? 'text-gray-300' : 'text-gray-700'
+  } ${header === 'Institution' ? 'relative' : ''}`}>
+    {header === 'Institution' ? (
+      <>
+        <button
+          onClick={() => setShowInstitutionDropdown(!showInstitutionDropdown)}
+          className={`flex items-center space-x-2 hover:text-blue-500 transition-colors ${
+            filters.institution ? 'text-blue-500' : ''
+          }`}
+        >
+          <span>{header}</span>
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+          {filters.institution && (
+            <span className="ml-1 px-2 py-1 bg-blue-500 text-white rounded-full text-xs">
+              ✓
+            </span>
+          )}
+        </button>
+        
+        {/* Dropdown */}
+        {showInstitutionDropdown && (
+          <div className={`absolute top-full left-0 mt-2 w-64 max-h-96 overflow-y-auto rounded-lg shadow-xl border z-50 ${
+            darkMode ? 'bg-gray-700 border-gray-600' : 'bg-white border-gray-200'
+          }`}>
+            <div className="p-2">
+              {/* Clear filter option */}
+              <button
+                onClick={() => {
+                  handleFilterChange('institution', '');
+                  setShowInstitutionDropdown(false);
+                }}
+                className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  !filters.institution
+                    ? 'bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200'
+                    : 'hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300'
+                }`}
+              >
+                All Institutions
+              </button>
+              
+              {/* Institution list */}
+              {[...new Set(patients.map(p => p.institution_name))]
+                .filter(name => name) // Remove empty values
+                .sort((a, b) => a.localeCompare(b)) // Alphabetical sort
+                .map((institution, index) => {
+                  const count = patients.filter(p => p.institution_name === institution).length;
+                  return (
+                    <button
+                      key={index}
+                      onClick={() => {
+                        handleFilterChange('institution', institution);
+                        setShowInstitutionDropdown(false);
+                      }}
+                      className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors flex items-center justify-between ${
+                        filters.institution === institution
+                          ? 'bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 font-semibold'
+                          : 'hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300'
+                      }`}
+                    >
+                      <span className="truncate">{institution}</span>
+                      <span className={`ml-2 px-2 py-1 rounded-full text-xs ${
+                        filters.institution === institution
+                          ? 'bg-blue-200 dark:bg-blue-800'
+                          : 'bg-gray-200 dark:bg-gray-700'
+                      }`}>
+                        {count}
+                      </span>
+                    </button>
+                  );
+                })}
+            </div>
+          </div>
+        )}
+      </>
+    ) : (
+      header
+    )}
+  </th>
+))}
      
     </tr>
   </thead>
@@ -1289,7 +1378,7 @@ useEffect(() => {
                   👑 VIP
                 </span>
              )}
-             {patient.mlc && (
+             {patient.Mlc && (
                <span className="inline-flex items-center px-2 py-1 text-xs font-bold bg-gradient-to-r from-orange-100 to-orange-200 text-orange-800 rounded-full border border-orange-300 shadow-sm dark:from-orange-900/30 dark:to-orange-800/30 dark:text-orange-200 dark:border-orange-600">
                  📋 MLC
                </span>
@@ -1338,18 +1427,17 @@ useEffect(() => {
         </td>
         <td className="px-4 py-4 whitespace-nowrap text-sm">
           <div className="flex space-x-2">
-           {/* <button className="inline-flex items-center px-3 py-1 rounded-lg text-xs font-medium bg-gradient-to-r from-blue-100 to-blue-200 text-blue-700 hover:from-blue-200 hover:to-blue-300 border border-blue-300 transition-all duration-200 transform hover:scale-105 dark:from-blue-900/30 dark:to-blue-800/30 dark:text-blue-200 dark:hover:from-blue-800 dark:hover:to-blue-700 dark:border-blue-600">
-              👁️ View
-            </button> */}
+          
                        <button
-  onClick={(e) => {
-    e.stopPropagation();
-    navigate(`/viewer?id=${patient.id}`);
-  }}
-  className="inline-flex items-center px-3 py-1 rounded-lg text-xs font-medium bg-gradient-to-r from-blue-100 to-blue-200 text-blue-700 hover:from-blue-200 hover:to-blue-300 border border-blue-300 transition-all duration-200 transform hover:scale-105 dark:from-blue-900/30 dark:to-blue-800/30 dark:text-blue-200 dark:hover:from-blue-800 dark:hover:to-blue-700 dark:border-blue-600"
->
-  👁️ View
-</button>
+                       
+                         onClick={(e) => {
+                           e.stopPropagation();
+                           navigate(`/viewer?id=${patient.id}`);
+                         }}
+                         className="inline-flex items-center px-3 py-1 rounded-lg text-xs font-medium bg-gradient-to-r from-blue-100 to-blue-200 text-blue-700 hover:from-blue-200 hover:to-blue-300 border border-blue-300 transition-all duration-200 transform hover:scale-105 dark:from-blue-900/30 dark:to-blue-800/30 dark:text-blue-200 dark:hover:from-blue-800 dark:hover:to-blue-700 dark:border-blue-600"
+                       >
+                         👁️ View
+                       </button>
             <button 
               className="inline-flex items-center px-3 py-1 rounded-lg text-xs font-medium bg-gradient-to-r from-emerald-100 to-green-200 dark:from-emerald-900/30 dark:to-green-800/30 text-emerald-700 dark:text-emerald-200 hover:from-emerald-200 hover:to-green-300 dark:hover:from-emerald-800 dark:hover:to-green-700 border border-emerald-300 dark:border-emerald-600 transition-all duration-200 transform hover:scale-105"
               onClick={() => setSelectedReport(patient)}  
@@ -1431,23 +1519,34 @@ useEffect(() => {
             {/* Modal Content */}
             <div className="flex-1 overflow-y-auto p-8">
               <form
-                onSubmit={e => {
-                  e.preventDefault();
-                  const fd = new FormData(e.target);
-                  const newData = {};
-                  fd.forEach((value, key) => {
-                    if (key !== 'history_file') {
-                      newData[key] = value;
-                    }
-                  });
+  onSubmit={e => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const newData = {};
+    fd.forEach((value, key) => {
+      if (key !== 'history_file' && key !== 'imaging_views') {
+        // Convert string boolean values to actual booleans
+        if (key === 'contrast_used' || key === 'is_follow_up') {
+          newData[key] = value === 'true';
+        } else {
+          newData[key] = value;
+        }
+      }
+    });
 
-                  // Extract history files
-                  const historyFiles = Array.from(fd.getAll('history_file')).filter(f => f && f.size > 0);
+    // Handle imaging_views checkboxes as an array
+    const imagingViews = fd.getAll('imaging_views');
+    if (imagingViews.length > 0) {
+      newData['imaging_views'] = imagingViews;
+    }
 
-                  handleSaveReport(newData, historyFiles.length ? historyFiles : null);
-                }}
-                className="space-y-6"
-              >
+    // Extract history files
+    const historyFiles = Array.from(fd.getAll('history_file')).filter(f => f && f.size > 0);
+
+    handleSaveReport(newData, historyFiles.length ? historyFiles : null);
+  }}
+  className="space-y-6"
+>
                 {/* Basic Information */}
                 <div className={`p-6 rounded-2xl border ${
                   darkMode 
@@ -1573,33 +1672,33 @@ useEffect(() => {
                         placeholder="Enter study description"
                       />
                     </label>
-<label className="flex flex-col space-y-2 md:col-span-2">
-  <span
-    className={`text-sm font-semibold ${
-      darkMode ? "text-gray-300" : "text-gray-700"
-    }`}
-  >
-    Body Part Examined
-  </span>
-
-  <Select
-    name="body_part_examined"
-    defaultValue={
-      selectedReport.body_part_examined
-        ? {
-            value: selectedReport.body_part_examined,
-            label: selectedReport.body_part_examined,
-          }
-        : null
-    }
-    options={bodyPartOptions}
-    placeholder="Search or select body part..."
-    isSearchable
-    className="react-select-container"
-    classNamePrefix="react-select"
-  />
-</label>
-
+                    <label className="flex flex-col space-y-2 md:col-span-2">
+                      <span
+                        className={`text-sm font-semibold ${
+                          darkMode ? "text-gray-300" : "text-gray-700"
+                        }`}
+                      >
+                        Body Part Examined
+                      </span>
+                    
+                      <Select
+                        name="body_part_examined"
+                        defaultValue={
+                          selectedReport.body_part_examined
+                            ? {
+                                value: selectedReport.body_part_examined,
+                                label: selectedReport.body_part_examined,
+                              }
+                            : null
+                        }
+                        options={bodyPartOptions}
+                        placeholder="Search or select body part..."
+                        isSearchable
+                        className="react-select-container"
+                        classNamePrefix="react-select"
+                      />
+                    </label>
+                    
 
                   </div>
                 </div>
@@ -1802,6 +1901,110 @@ useEffect(() => {
                     </p>
                   </label>
                 </div>
+
+                {/* ADD THIS NEW SECTION HERE */}
+                 <div className={`p-6 rounded-2xl border ${
+                   darkMode 
+                     ? 'bg-gray-700 border-gray-600' 
+                     : 'bg-gradient-to-r from-cyan-50 to-teal-50 border-cyan-100'
+                 }`}>
+                   <h3 className={`text-lg font-bold mb-4 flex items-center space-x-2 ${
+                     darkMode ? 'text-white' : 'text-gray-900'
+                   }`}>
+                     <span>✅</span>
+                     <span>Pre-Scan Verification Checklist</span>
+                   </h3>
+                   
+                   <div className="space-y-4 text-sm">
+                     <div>
+                       <p className={`font-semibold mb-2 ${
+                         darkMode ? 'text-gray-300' : 'text-gray-700'
+                       }`}>1. Body Part Confirmation</p>
+                       <p className={`ml-4 ${
+                         darkMode ? 'text-gray-400' : 'text-gray-600'
+                       }`}>
+                         ➝ Have you filled the body part details? 
+                       </p>
+                     </div>
+                     
+                     <div>
+                       <p className={`font-semibold mb-2 ${
+                         darkMode ? 'text-gray-300' : 'text-gray-700'
+                       }`}>2. Contrast Imaging Verification</p>
+                       <div className="ml-4 flex space-x-4">
+                         <label className="inline-flex items-center space-x-2">
+                           <input
+                             type="radio"
+                             name="contrast_used"
+                             value="true"
+                             defaultChecked={selectedReport.contrastUsed}
+                             className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                           />
+                           <span className={darkMode ? 'text-gray-300' : 'text-gray-700'}>Yes</span>
+                         </label>
+                         <label className="inline-flex items-center space-x-2">
+                           <input
+                             type="radio"
+                             name="contrast_used"
+                             value="false"
+                             defaultChecked={!selectedReport.contrastUsed}
+                             className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                           />
+                           <span className={darkMode ? 'text-gray-300' : 'text-gray-700'}>No</span>
+                         </label>
+                       </div>
+                     </div>
+                     
+                     <div>
+                       <p className={`font-semibold mb-2 ${
+                         darkMode ? 'text-gray-300' : 'text-gray-700'
+                       }`}>3. Comparative / Follow-Up Verification</p>
+                       <div className="ml-4 flex space-x-4">
+                         <label className="inline-flex items-center space-x-2">
+                           <input
+                             type="radio"
+                             name="is_follow_up"
+                             value="true"
+                             defaultChecked={selectedReport.isFollowUp}
+                             className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                           />
+                           <span className={darkMode ? 'text-gray-300' : 'text-gray-700'}>Yes</span>
+                         </label>
+                         <label className="inline-flex items-center space-x-2">
+                           <input
+                             type="radio"
+                             name="is_follow_up"
+                             value="false"
+                             defaultChecked={!selectedReport.isFollowUp}
+                             className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                           />
+                           <span className={darkMode ? 'text-gray-300' : 'text-gray-700'}>No</span>
+                         </label>
+                       </div>
+                     </div>
+                     
+                     <div>
+                       <p className={`font-semibold mb-2 ${
+                         darkMode ? 'text-gray-300' : 'text-gray-700'
+                       }`}>4. Imaging View Verification (for X-ray)</p>
+                       <div className="ml-4 grid grid-cols-2 md:grid-cols-4 gap-3">
+                         {['AP', 'PA', 'Lateral', 'Oblique'].map((view) => (
+                           <label key={view} className="inline-flex items-center space-x-2">
+                             <input
+                               type="checkbox"
+                               name="imaging_views"
+                               value={view}
+                               className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 w-4 h-4"
+                             />
+                             <span className={`text-sm ${
+                               darkMode ? 'text-gray-300' : 'text-gray-700'
+                             }`}>{view}</span>
+                           </label>
+                         ))}
+                       </div>
+                     </div>
+                   </div>
+                 </div>
 
                 {/* Form Actions */}
                 <div className="flex justify-end space-x-4 pt-6 border-t border-gray-200 dark:border-gray-600">

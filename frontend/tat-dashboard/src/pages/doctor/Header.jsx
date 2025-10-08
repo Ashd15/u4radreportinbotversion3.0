@@ -71,7 +71,7 @@ const Header = ({ onSidebarToggle }) => {
         </button>
       </div>
     </div>
-  );
+  );    
 };
 
 export default Header;

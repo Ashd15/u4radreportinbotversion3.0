@@ -160,11 +160,9 @@ const ClientSidebar = ({ summary = {} }) => {
           <div>
             <p className="font-semibold text-blue-600 dark:text-blue-300 mb-1">Quick Tip</p>
             <ul className="list-disc ml-4 space-y-1">
-              <li>Modality numbers come from the `modality` field in reports.</li>
-              <li>
-               
-              </li>
-              <li>Hover the donut to see exact values and percentages.</li>
+              <li>Once a new case arrives, upload the patient’s history and write the patient note within 10 minutes.</li>
+              <li>Check patient details, and if anything is wrong, immediately inform the coordinator.</li>
+              <li>After reporting, double-check the report for any errors before final submission.</li>
             </ul>
           </div>
         </div>

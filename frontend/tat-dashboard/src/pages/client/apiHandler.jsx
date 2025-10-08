@@ -1,16 +1,20 @@
 // apiHandler.jsx
-import axios from 'axios';
-
-// Create an axios instance with default settings
-const api = axios.create({
-  baseURL: 'http://localhost:8000/api', // use same origin for session cookie
-  withCredentials: true, // sends cookies automatically
-  headers: { 'Content-Type': 'application/json' },
-});
+const API_BASE_URL = 'http://127.0.0.1:8000/api';
 
 class ApiHandler {
-  // Generic method for GET/POST/PUT/DELETE requests
-  static async makeRequest(method, endpoint, data = null, config = {}) {
+  // Generic method for making API requests
+  static async makeRequest(endpoint, options = {}) {
+    const url = `${API_BASE_URL}${endpoint}`;
+
+    // Detect if body is FormData (for file uploads)
+    const isFormData = options.body instanceof FormData;
+
+    const defaultOptions = {
+      headers: isFormData
+        ? { ...options.headers } // Do NOT set Content-Type for FormData
+        : { 'Content-Type': 'application/json', ...options.headers },
+    };
+
     try {
       const response = await api.request({
         url: endpoint,
@@ -61,10 +65,15 @@ class ApiHandler {
   // Download a report file (PDF/Word)
   static async downloadReport(reportId, format = 'pdf') {
     try {
-      const response = await api.get(`/download-report/${reportId}/?format=${format}`, {
-        responseType: 'blob',
-      });
-      const url = window.URL.createObjectURL(response.data);
+      const response = await fetch(
+        `${API_BASE_URL}/download-report/${reportId}/?format=${format}`
+      );
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
       link.download = `report-${reportId}.${format}`;

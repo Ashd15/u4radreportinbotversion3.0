@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react"; 
+import { useNavigate } from "react-router-dom";
 import {
   Search,
   MapPin,
@@ -86,12 +87,16 @@ const ClientDashboard = () => {
   const user = JSON.parse(localStorage.getItem("user"))?.user;
   const firstName = user?.first_name || "";
   const lastName = user?.last_name || "";
+  const [activeDropdown, setActiveDropdown] = useState(null);
+  const [activeReportDropdown, setActiveReportDropdown] = useState(null); // Add this new state
+  const navigate = useNavigate();
 
   const [filters, setFilters] = useState({
     name: "",
     email: "",
     modality: "",
     status: "",
+    id: "",
   });
 
   // Fetch reports on mount
@@ -120,48 +125,51 @@ const fetchBodyParts = async () => {
   }, [filters]);
 
   const fetchReports = async () => {
-    try {
-      setLoading(true);
-      const response = await ApiHandler.getDicomReports();
-      if (response.success) {
-        const transformedData = response.data.map(item => ({
-          id: item.id,
-          patient_id: item.patient_id,
-          name: item.patient_name || "N/A",
-          email: item.email || "N/A",
-          testDate: item.recived_on_db ? new Date(item.recived_on_db).toLocaleDateString() : "N/A",
-          modality: item.Modality || "N/A",
-          reportDate: item.marked_done_at ? new Date(item.marked_done_at).toLocaleDateString() : item.study_description || "N/A",
-          location: item.body_part_examined || item.study_description || "N/A",
-          status: item.isDone ? "Ready" : "Pending",
-          pdfs: [], // Adjust if API returns PDFs
-          age: item.age,
-          gender: item.gender,
-          studyDescription: item.study_description,
-          referringDoctor: item.referring_doctor_name,
-          whatsappNumber: item.whatsapp_number,
-          notes: item.notes,
-          bodyPart: item.body_part_examined,
-          isVIP: item.vip || false,
-          isUrgent: item.urgent || false,
-          isMLC: item.Mlc || false,
-          studyId: item.study_id,
-          contrastUsed: item.contrast_used,
-          isFollowUp: item.is_follow_up,
-          imagingViews: item.imaging_views,
-          inhousePatient: item.inhouse_patient
-        }));
-        setReports(transformedData);
-        
-      } else {
-        setError(response.error || "Failed to fetch reports");
-      }
-    } catch (err) {
-      setError("Error fetching reports: " + err.message);
-    } finally {
-      setLoading(false);
+  try {
+    setLoading(true);
+    const response = await ApiHandler.getTatCounters(); // Change this method name
+    if (response.success) {
+      const transformedData = response.data.map(item => ({
+        id: item.id,
+        patient_id: item.patient_id,
+        name: item.patient_name || "N/A",
+        email: item.email || "N/A",
+        testDate: item.recived_on_db ? new Date(item.recived_on_db).toLocaleDateString() : "N/A",
+        modality: item.modality || "N/A",
+        reportDate: item.marked_done_at ? new Date(item.marked_done_at).toLocaleDateString() : item.study_description || "N/A",
+        location: item.body_part_examined || item.study_description || "N/A",
+        status: item.is_done ? "Ready" : "Pending",
+        pdfs: [], // Remove this line as we'll use patient_reports
+        patient_reports: item.patient_reports || [], // Add this
+        history_files: item.history_files || [], // Add this
+        age: item.age,
+        gender: item.gender,
+        testDate: item.study_date,
+        studyDescription: item.study_description,
+        referringDoctor: item.referring_doctor_name,
+        whatsappNumber: item.whatsapp_number,
+        notes: item.notes,
+        bodyPart: item.body_part_examined,
+        isVIP: item.vip || false,
+        isUrgent: item.urgent || false,
+        isMLC: item.Mlc || false,
+        studyId: item.study_id,
+        contrastUsed: item.contrast_used,
+        isFollowUp: item.is_follow_up,
+        imagingViews: item.imaging_views,
+        inhousePatient: item.inhouse_patient
+      }));
+      setReports(transformedData);
+      
+    } else {
+      setError(response.error || "Failed to fetch reports");
     }
-  };
+  } catch (err) {
+    setError("Error fetching reports: " + err.message);
+  } finally {
+    setLoading(false);
+  }
+};
 
   // Calculate dynamic summary from reports data
   const summary = React.useMemo(() => {
@@ -192,7 +200,8 @@ const fetchBodyParts = async () => {
     report.name.toLowerCase().includes(filters.name.toLowerCase()) &&
     (report.email || "").toLowerCase().includes(filters.email.toLowerCase()) &&
     (filters.modality === "" || report.modality === filters.modality) &&
-    (filters.status === "" || report.status === filters.status)
+    (filters.status === "" || report.status === filters.status)&&
+    report.patient_id.toLowerCase().includes(filters.id.toLowerCase())
   );
 
   const handleSaveReport = async (reportData, historyFiles = null) => {
@@ -355,7 +364,7 @@ const fetchBodyParts = async () => {
         sessionStorage.clear();
 
         // Redirect to login
-        window.location.href = "/login";
+        window.location.href = "/";
       }}
       className="flex items-center gap-2 px-3 py-2 bg-red-600 text-white rounded-lg shadow-md hover:bg-red-700 transition"
     >
@@ -380,6 +389,13 @@ const fetchBodyParts = async () => {
             placeholder="Search by Name"
             value={filters.name}
             onChange={(e) => setFilters({ ...filters, name: e.target.value })}
+            className="border p-2 rounded flex-1"
+          />
+          <input
+            type="text"
+            placeholder="Search by Patient ID"
+            value={filters.id}
+            onChange={(e) => setFilters({ ...filters, id: e.target.value })}
             className="border p-2 rounded flex-1"
           />
           <input
@@ -422,15 +438,16 @@ const fetchBodyParts = async () => {
         </div>
 
         {/* Table */}
-        <div className="bg-white rounded-xl shadow-lg overflow-hidden flex-1">
-          <div className="overflow-y-auto max-h-[450px]">
+        <div className="bg-white rounded-xl shadow-lg overflow-hidden flex-1 min-h-0">
+          <div className="overflow-y-auto h-full">
             <table className="w-full text-sm border-collapse">
               <thead className="bg-gradient-to-r from-gray-800 to-gray-700 text-white sticky top-0 z-10">
                 <tr>
                   <th className="p-3 text-left">Patient ID</th>
                   <th className="p-3 text-left">Name</th>
-                  <th className="p-3 text-left">Email</th>
+                  {/* <th className="p-3 text-left">Email</th> */}
                   <th className="p-3 text-left">Test Date</th>
+                  <th className="p-3 text-left">Report Date</th>
                   <th className="p-3 text-left">Modality</th>
                   <th className="p-3 text-left">Study Description</th>
                   <th className="p-3 text-left">Body part</th>
@@ -439,20 +456,21 @@ const fetchBodyParts = async () => {
                 </tr>
               </thead>
               <tbody>
-                {paginatedReports.map((report, index)=> (
+                {[...paginatedReports].reverse().map((report, index)=> (
                   <tr
                     key={report.id}
                     className={`transition hover:bg-gray-50 ${
                       index % 2 === 0 ? "bg-gray-50/30" : "bg-white"
                     }`}
                   >
-                    <td className="p-3 font-medium text-gray-700">{report.patient_id}</td>
-                    <td className="p-3">{report.name}</td>
-                    <td className="p-3 text-gray-600">{report.email}</td>
-                    <td className="p-3">{report.testDate}</td>
-                    <td className="p-3">{report.modality}</td>
-                    <td className="p-3">{report.studyDescription}</td>
-                    <td className="p-3">{report.location}</td>
+                    <td className="p-2 font-medium text-gray-700">{report.patient_id}</td>
+                    <td className="p-2">{report.name}</td>
+                    {/* <td className="p-2 text-gray-600">{report.email}</td> */}
+                    <td className="p-2">{report.testDate}</td>
+                    <td className="p-2">{report.reportDate}</td>
+                    <td className="p-2">{report.modality}</td>
+                    <td className="p-2">{report.studyDescription}</td>
+                    <td className="p-2">{report.location}</td>
                     <td className="p-3">
                       <span
                         className={`px-3 py-1 rounded-full text-xs font-medium cursor-pointer ${
@@ -467,18 +485,85 @@ const fetchBodyParts = async () => {
                     </td>
                     <td className="p-3">
                       <div className="flex gap-2 flex-wrap">
-                        <button className="flex items-center gap-1 text-xs px-2 py-1 rounded bg-gray-100 hover:bg-gray-200">
-                          <FileText className="w-4 h-4" /> Word
-                        </button>
-                        {report.pdfs?.map((pdf, i) => (
-                          <button
-                            key={i}
-                            className="flex items-center gap-1 text-xs px-2 py-1 rounded bg-gray-100 hover:bg-gray-200"
-                            onClick={() => ApiHandler.downloadReport(report.id, 'pdf')}
-                          >
-                            <FileDown className="w-4 h-4" /> PDF {i + 1}
-                          </button>
-                        ))}
+                         <button
+  onClick={(e) => {
+    e.stopPropagation();
+    navigate(`/viewer?id=${report.id}`);
+  }}
+  className="inline-flex items-center px-3 py-1 rounded-lg text-xs font-medium bg-gradient-to-r from-blue-100 to-blue-200 text-blue-700 hover:from-blue-200 hover:to-blue-300 border border-blue-300 transition-all duration-200 transform hover:scale-105 dark:from-blue-900/30 dark:to-blue-800/30 dark:text-blue-200 dark:hover:from-blue-800 dark:hover:to-blue-700 dark:border-blue-600"
+>
+  👁️ View
+</button>
+ 
+
+    {/* Patient Reports from API */}
+{/* Patient Reports from API - with dropdown */}
+{report.patient_reports && report.patient_reports.length > 0 && (
+  report.patient_reports.map((reportFile, i) => (
+    <div key={`report-${i}`} className="relative inline-block text-left">
+      <button
+        onClick={() =>
+          setActiveReportDropdown(
+            activeReportDropdown === `${report.id}-report-${i}` 
+              ? null 
+              : `${report.id}-report-${i}`
+          )
+        }
+        className="flex items-center gap-1 text-xs px-2 py-1 rounded bg-green-100 hover:bg-green-200 text-green-700"
+      >
+        <FileText className="w-4 h-4" /> 
+        {report.patient_reports.length === 1 ? 'Report' : `Report ${i + 1}`}
+      </button>
+
+      {activeReportDropdown === `${report.id}-report-${i}` && (
+        <div className="absolute right-0 mt-1 w-40 bg-white border border-gray-200 rounded shadow-lg z-10">
+          <button
+            onClick={() => {
+              window.open(reportFile.url, '_blank');
+              setActiveReportDropdown(null);
+            }}
+            className="flex items-center w-full gap-2 px-3 py-2 text-xs text-gray-700 hover:bg-gray-100"
+          >
+            Word
+          </button>
+          <button
+            onClick={() => {
+              window.open(reportFile.url, '_blank');
+              setActiveReportDropdown(null);
+            }}
+            className="flex items-center w-full gap-2 px-3 py-2 text-xs text-gray-700 hover:bg-gray-100"
+          >
+            PDF
+          </button>
+          <button
+            onClick={() => {
+              console.log("Send via WhatsApp", reportFile.url);
+              setActiveReportDropdown(null);
+            }}
+            className="flex items-center w-full gap-2 px-3 py-2 text-xs text-gray-700 hover:bg-gray-100"
+          >
+            Send WhatsApp
+          </button>
+        </div>
+      )}
+    </div>
+  ))
+)}
+
+    {/* History Files from API */}
+    {report.history_files && report.history_files.length > 0 && (
+      report.history_files.map((historyFile, i) => (
+        <button
+          key={`history-${i}`}
+          className="flex items-center gap-1 text-xs px-2 py-1 rounded bg-blue-100 hover:bg-blue-200 text-blue-700"
+          onClick={() => window.open(historyFile.url, '_blank')}
+        >
+          <FileDown className="w-4 h-4" /> 
+          {report.history_files.length === 1 ? 'History' : `H${i + 1}`}
+        </button>
+      ))
+    )}
+
                         <button className="flex items-center gap-1 text-xs px-2 py-1 rounded bg-gray-100 hover:bg-gray-200">
                           <MessageCircle className="w-4 h-4" /> WhatsApp
                         </button>
@@ -688,25 +773,25 @@ const fetchBodyParts = async () => {
               </label>
 
              <label className="flex flex-col">
-  <span>Body Part Examined:</span>
-  <select
-    name="body_part_examined"
-    value={selectedReport?.bodyPart || ""}
-    onChange={(e) =>
-      setSelectedReport((prev) => ({ ...prev, bodyPart: e.target.value }))
-    }
-    className="border rounded p-2"
-  >
-    <option value="" disabled>
-      Select Body Part
-    </option>
-    {bodyParts.map((part) => (
-      <option key={part.id} value={part.name}>
-        {part.name}
-      </option>
-    ))}
-  </select>
-</label>
+               <span>Body Part Examined:</span>
+               <select
+                 name="body_part_examined"
+                 value={selectedReport?.bodyPart || ""}
+                 onChange={(e) =>
+                   setSelectedReport((prev) => ({ ...prev, bodyPart: e.target.value }))
+                 }
+                 className="border rounded p-2"
+               >
+                 <option value="" disabled>
+                   Select Body Part
+                 </option>
+                 {bodyParts.map((part) => (
+                   <option key={part.id} value={part.name}>
+                     {part.name}
+                   </option>
+                 ))}
+               </select>
+             </label>
 
 
               <label className="flex flex-col">
@@ -759,7 +844,7 @@ const fetchBodyParts = async () => {
                   <div>
                     <p>1. Body Part Confirmation</p>
                     <p className="text-gray-600 ml-2">
-                      ➝ Have you filled the body part details? (Coordinator/Client)
+                      ➝ Have you filled the body part details? 
                     </p>
                   </div>
                   <div>

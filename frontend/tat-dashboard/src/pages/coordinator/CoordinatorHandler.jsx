@@ -21,7 +21,7 @@ const CoordinatorHandler = {
     try {
       const response = await fetch(`${API_BASE_URL}/fetch-tat-counters/`, {
       method: "GET",
-      credentials: "include",   // 🔑 send session cookie
+      credentials: "include",   
     });
 
       if (!response.ok) {
