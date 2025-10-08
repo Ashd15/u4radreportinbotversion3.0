@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Filter, Download, Eye, Calendar, MapPin, FileText, ChevronLeft, ChevronRight, ArrowLeft, Menu, Sun, Moon, AlertCircle } from 'lucide-react';
-import { fetchECGPDFReports, downloadECGPDFReport, viewECGPDFReport } from '../../api/apiConnector';
+import { fetchECGPDFReports, downloadECGPDFReport, viewECGPDFReport } from './Ecg_handler_dashboard';
 import { useNavigate } from 'react-router-dom';
 
 const ECGPDFDashboard = () => {

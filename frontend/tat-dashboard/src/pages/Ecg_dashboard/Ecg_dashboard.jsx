@@ -10,7 +10,7 @@ import {
   exportPatientsData,
   getPatientDetails,
   uploadECGFiles
-} from '../../api/apiConnector';
+} from './Ecg_handler_dashboard';
 import Header from '../doctor/Header';
 
 const ECGDashboard = () => {
@@ -125,7 +125,7 @@ const ECGDashboard = () => {
     setLoading(true);
     setError(null);
 
-    // Enhanced ordering logic
+    // ✅ Enhanced ordering logic
     let ordering = '';
     const orderPrefix = sortOrder === 'desc' ? '-' : '';
 
@@ -152,7 +152,7 @@ const ECGDashboard = () => {
         ordering = `${orderPrefix}MarkAsUrgent`;
         break;
       default:
-        ordering = '-Date'; // Default to latest
+        ordering = '-Date'; // Default: latest first
     }
 
     const params = {
@@ -161,19 +161,36 @@ const ECGDashboard = () => {
       ordering: ordering,
       ...Object.fromEntries(
         Object.entries(filters).filter(([_, value]) => value !== '' && value !== false)
-      )
+      ),
     };
 
     const response = await fetchECGPatients(params);
-    const data = response.data;
 
-    setPatients(data.patients || []);
-    setTotalPages(data.num_pages || 1);
-    setTotalPatients(data.total || 0);
+    // ✅ Handle different possible response structures safely
+    const rawData = response?.data || response;
+    const patientList = Array.isArray(rawData)
+      ? rawData
+      : rawData?.patients || rawData?.results || rawData?.data || [];
+
+    const totalPages =
+      rawData?.num_pages ||
+      rawData?.total_pages ||
+      rawData?.pagination?.pages ||
+      1;
+
+    const totalPatients =
+      rawData?.total ||
+      rawData?.count ||
+      rawData?.pagination?.total_items ||
+      patientList.length;
+
+    // ✅ Update state safely
+    setPatients(patientList);
+    setTotalPages(totalPages);
+    setTotalPatients(totalPatients);
 
     // ✅ Refresh stats after loading patients
     await fetchStats();
-
   } catch (error) {
     console.error('Error loading patients:', error);
     setError('Failed to load patient data. Please try again.');
@@ -181,6 +198,7 @@ const ECGDashboard = () => {
     setLoading(false);
   }
 };
+
 
   const handleSearch = () => {
     setCurrentPage(1);

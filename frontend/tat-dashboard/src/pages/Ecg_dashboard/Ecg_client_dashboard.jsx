@@ -1,7 +1,7 @@
 // src/components/ECGPatientDashboard.jsx
 import React, { useState, useEffect } from 'react';
 import { Plus, Search, X, Upload, Filter, ChevronLeft, ChevronRight, LogOut, Edit, Activity, Calendar, MapPin, User, Download, AlertCircle, RefreshCw, Moon, Sun } from 'lucide-react';
-import { fetchPatients, addPatient } from '../../api/apiConnector';
+import { fetchPatients, addPatient } from './Ecg_handler_dashboard';
 
 const ECGPatientDashboard = () => {
   const [patients, setPatients] = useState([]);
