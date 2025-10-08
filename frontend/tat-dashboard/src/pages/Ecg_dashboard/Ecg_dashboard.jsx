@@ -11,6 +11,7 @@ import {
   getPatientDetails,
   uploadECGFiles
 } from '../../api/apiConnector';
+import Header from '../doctor/Header';
 
 const ECGDashboard = () => {
   const [isDarkMode, setIsDarkMode] = useState(() => {
@@ -339,13 +340,13 @@ const ECGDashboard = () => {
   try {
     const response = await uploadECGFiles(uploadData.files, uploadData.location);
 
-    console.log(response);
+    console.log('Upload response:', response);
 
     if (response.success) {
       alert('Files uploaded successfully!');
       setShowUploadModal(false);
       setUploadData({ files: [], location: '' });
-      loadPatients();
+      loadPatients(); // refresh table
     } else {
       const errorMsg = response.error || 'Unknown error';
       alert('Upload failed: ' + errorMsg);
@@ -446,7 +447,7 @@ const ECGDashboard = () => {
 
   const handleLogout = () => {
     localStorage.removeItem("token");   // or whatever key you use
-    window.location.href = "/login";    // redirect to login page
+    window.location.href = "/";    // redirect to login page
   };
 
   const handleExport = () => {
@@ -502,8 +503,19 @@ const ECGDashboard = () => {
               >
                 <Menu className="w-5 h-5 text-gray-900 dark:text-white" />
               </button>
-              <h1 className="text-lg sm:text-2xl font-semibold text-gray-900 dark:text-white">ECG Dashboard</h1>
+
+              {/* Add Logo here */}
+              <img
+                src="https://u4rad.com/static/media/Logo.c9920d154c922ea9e355.png"
+                alt="U4rad"
+                className="h-10 p-1 bg-transparent dark:bg-white rounded"   // Tailwind way instead of inline style
+              />
+
+              <h1 className="text-lg sm:text-2xl font-semibold text-gray-900 dark:text-white">
+                ECG Dashboard
+              </h1>
             </div>
+
             
             {/* Desktop Controls */}
             <div className="hidden md:flex items-center space-x-4">

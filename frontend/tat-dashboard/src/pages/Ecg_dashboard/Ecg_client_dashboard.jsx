@@ -161,7 +161,7 @@ const ECGPatientDashboard = () => {
 
   const handleLogout = () => {
     localStorage.removeItem("token");
-    window.location.href = "/login";
+    window.location.href = "/";
   };
 
   const toggleDarkMode = () => {
@@ -174,17 +174,30 @@ const ECGPatientDashboard = () => {
       <div className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
         <div className="container mx-auto px-4 py-4">
           <div className="flex justify-between items-center">
-            <h1 className="text-2xl font-bold text-black dark:text-white">ECG Patient Dashboard</h1>
+            {/* Left side: Logo + Title */}
+            <div className="flex items-center gap-3">
+              <img
+                src="https://u4rad.com/static/media/Logo.c9920d154c922ea9e355.png"
+                alt="U4rad"
+                className="h-10 p-1 bg-transparent dark:bg-white rounded"
+              />
+              <h1 className="text-2xl font-bold text-black dark:text-white">
+                ECG Patient Dashboard
+              </h1>
+            </div>
+
+            {/* Right side: Dark Mode Toggle + Logout */}
             <div className="flex items-center gap-4">
               {/* Dark Mode Toggle */}
               <button
                 onClick={toggleDarkMode}
                 className="p-2 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-                aria-label={darkMode ? "Switch to light mode" : "Switch to dark mode"}
+                aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
               >
                 {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
               </button>
-              
+
+              {/* Logout Button */}
               <button
                 onClick={handleLogout}
                 className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg text-white transition-colors flex items-center gap-2"
@@ -194,6 +207,7 @@ const ECGPatientDashboard = () => {
               </button>
             </div>
           </div>
+
         </div>
       </div>
 

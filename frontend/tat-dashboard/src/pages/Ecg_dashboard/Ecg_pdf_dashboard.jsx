@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Filter, Download, Eye, Calendar, MapPin, FileText, ChevronLeft, ChevronRight, ArrowLeft, Menu, Sun, Moon } from 'lucide-react';
+import { Search, Filter, Download, Eye, Calendar, MapPin, FileText, ChevronLeft, ChevronRight, ArrowLeft, Menu, Sun, Moon, AlertCircle } from 'lucide-react';
 import { fetchECGPDFReports, downloadECGPDFReport, viewECGPDFReport } from '../../api/apiConnector';
 import { useNavigate } from 'react-router-dom';
 
@@ -13,6 +13,9 @@ const ECGPDFDashboard = () => {
   const [showFilters, setShowFilters] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [error, setError] = useState(null);
+  const [selectedReports, setSelectedReports] = useState(new Set());
+  const [downloadingBulk, setDownloadingBulk] = useState(false);
 
   // Filter states
   const [selectedTestDate, setSelectedTestDate] = useState('');
@@ -47,21 +50,84 @@ const ECGPDFDashboard = () => {
 
   const fetchReports = async (params = {}) => {
     setLoading(true);
+    setError(null);
+    
     try {
-      const response = await fetchECGPDFReports(params);
-      if (response.success && response.data.success) {
-        setReports(response.data.pdfs);
-        setPagination(response.data.pagination);
-        setAvailableFilters({
-          testDates: response.data.Test_Date || [],
-          reportDates: response.data.Report_Date || [],
-          locations: response.data.Location || []
-        });
+      console.log('Fetching reports with params:', params);
+      
+      // Build query parameters properly
+      const queryParams = new URLSearchParams();
+      
+      if (params.search) queryParams.append('search', params.search);
+      if (params.test_date) queryParams.append('test_date', params.test_date);
+      if (params.report_date) queryParams.append('report_date', params.report_date);
+      if (params.location) queryParams.append('location', params.location);
+      if (params.page) queryParams.append('page', params.page);
+      
+      const queryString = queryParams.toString();
+      const finalParams = queryString ? `?${queryString}` : '';
+      
+      const response = await fetchECGPDFReports(finalParams);
+
+      console.log('Full API Response:', response);
+      console.log('Response structure:', {
+        hasSuccess: 'success' in response,
+        successValue: response.success,
+        hasData: 'data' in response,
+        dataType: typeof response.data,
+        dataKeys: response.data ? Object.keys(response.data) : 'no data'
+      });
+
+      if (response && response.success) {
+        let actualData = null;
+        
+        if (response.data && response.data.success && response.data.data) {
+          console.log('Case 1: Nested success/data structure');
+          actualData = response.data.data;
+        }
+        else if (response.data && response.data.pdfs) {
+          console.log('Case 2: Direct pdfs in response.data');
+          actualData = response.data;
+        }
+        else if (response.pdfs) {
+          console.log('Case 3: Direct pdfs in response');
+          actualData = response;
+        }
+        
+        if (actualData && actualData.pdfs) {
+          console.log('Setting reports:', actualData.pdfs.length, 'items');
+          setReports(actualData.pdfs || []);
+          setPagination(actualData.pagination || {});
+          
+          // Set available filters with proper fallbacks
+          setAvailableFilters({
+            testDates: actualData.Test_Date || actualData.testDates || [],
+            reportDates: actualData.Report_Date || actualData.reportDates || [],
+            locations: actualData.Location || actualData.locations || []
+          });
+          
+          // Clear selected reports when data changes
+          setSelectedReports(new Set());
+        } else {
+          console.error('Could not find pdfs in response. Full response:', JSON.stringify(response, null, 2));
+          setError('No reports data found in server response');
+          setReports([]);
+          setPagination({});
+          setAvailableFilters({});
+        }
       } else {
-        console.error('Failed to fetch reports:', response.error);
+        console.error('Response not successful:', response);
+        setError(response.error || response.message || 'Failed to fetch reports');
+        setReports([]);
+        setPagination({});
+        setAvailableFilters({});
       }
     } catch (error) {
-      console.error('Error fetching reports:', error);
+      console.error('Error in fetchReports:', error);
+      setError(error.message || 'An error occurred while fetching reports');
+      setReports([]);
+      setPagination({});
+      setAvailableFilters({});
     } finally {
       setLoading(false);
     }
@@ -98,13 +164,55 @@ const ECGPDFDashboard = () => {
   };
 
   const handleViewReport = (report) => {
-    viewECGPDFReport(report.pdf_file);
+    if (report.pdf_file) {
+      viewECGPDFReport(report.pdf_file);
+    } else {
+      alert('PDF file not available');
+    }
   };
 
   const handleDownloadReport = async (report) => {
     const result = await downloadECGPDFReport(report.id, report.patient_name);
     if (!result.success) {
       alert(`Download failed: ${result.error}`);
+    }
+  };
+
+  // NEW: Bulk download functionality
+  const handleBulkDownload = async () => {
+    if (selectedReports.size === 0) {
+      alert('Please select at least one report to download');
+      return;
+    }
+
+    setDownloadingBulk(true);
+    
+    try {
+      const selectedReportIds = Array.from(selectedReports);
+      const selectedReportObjects = reports.filter(report => 
+        selectedReportIds.includes(report.id)
+      );
+
+      // Download each report sequentially
+      for (let i = 0; i < selectedReportObjects.length; i++) {
+        const report = selectedReportObjects[i];
+        console.log(`Downloading report ${i + 1}/${selectedReportObjects.length}:`, report.patient_name);
+        
+        const result = await downloadECGPDFReport(report.id, report.patient_name);
+        if (!result.success) {
+          console.error(`Failed to download ${report.patient_name}:`, result.error);
+        }
+        
+        // Small delay to prevent overwhelming the browser
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+      
+      alert(`Successfully processed ${selectedReportObjects.length} reports`);
+    } catch (error) {
+      console.error('Error in bulk download:', error);
+      alert('Some downloads failed. Please check the console for details.');
+    } finally {
+      setDownloadingBulk(false);
     }
   };
 
@@ -115,6 +223,29 @@ const ECGPDFDashboard = () => {
   const toggleDarkMode = () => {
     setIsDarkMode(!isDarkMode);
   };
+
+  // Selection handlers
+  const toggleSelectAll = () => {
+    if (selectedReports.size === reports.length) {
+      setSelectedReports(new Set());
+    } else {
+      const allIds = reports.map(report => report.id);
+      setSelectedReports(new Set(allIds));
+    }
+  };
+
+  const toggleSelectReport = (reportId) => {
+    const newSelected = new Set(selectedReports);
+    if (newSelected.has(reportId)) {
+      newSelected.delete(reportId);
+    } else {
+      newSelected.add(reportId);
+    }
+    setSelectedReports(newSelected);
+  };
+
+  const isAllSelected = reports.length > 0 && selectedReports.size === reports.length;
+  const isIndeterminate = selectedReports.size > 0 && selectedReports.size < reports.length;
 
   if (loading) {
     return (
@@ -160,17 +291,27 @@ const ECGPDFDashboard = () => {
             
             {/* Desktop Controls */}
             <div className="hidden md:flex items-center space-x-4">
-              {/* Dark Mode Toggle */}
+              {/* Bulk Download Button */}
+              {selectedReports.size > 0 && (
+                <button
+                  onClick={handleBulkDownload}
+                  disabled={downloadingBulk}
+                  className="flex items-center px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white rounded-lg transition-colors duration-200 shadow-sm"
+                >
+                  <Download className="mr-2 h-4 w-4" />
+                  {downloadingBulk ? 'Downloading...' : `Download Selected (${selectedReports.size})`}
+                </button>
+              )}
+              
               <button
                 onClick={toggleDarkMode}
                 className="p-2 rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-200 bg-white dark:bg-gray-700"
                 title={isDarkMode ? "Switch to light mode" : "Switch to dark mode"}
-                aria-label={isDarkMode ? "Switch to light mode" : "Switch to dark mode"}
               >
                 {isDarkMode ? (
                   <Sun className="w-5 h-5 text-yellow-400" />
                 ) : (
-                  <Moon className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+                  <Moon className="w-5 h-5 text-gray-600" />
                 )}
               </button>
             </div>
@@ -179,25 +320,52 @@ const ECGPDFDashboard = () => {
           {/* Mobile Menu */}
           {isMobileMenuOpen && (
             <div className="md:hidden border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 py-3 mt-4 transition-colors duration-200">
-              <div className="flex flex-col space-y-2">
+              {/* Mobile Bulk Download Button */}
+              {selectedReports.size > 0 && (
                 <button
-                  onClick={toggleDarkMode}
-                  className="flex items-center px-3 py-2 text-gray-900 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition-colors duration-200"
+                  onClick={handleBulkDownload}
+                  disabled={downloadingBulk}
+                  className="flex items-center w-full px-3 py-2 bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white rounded-lg transition-colors duration-200 mb-3 justify-center"
                 >
-                  {isDarkMode ? (
-                    <Sun className="w-5 h-5 mr-3 text-yellow-400" />
-                  ) : (
-                    <Moon className="w-5 h-5 mr-3 text-gray-600 dark:text-gray-400" />
-                  )}
-                  <span>{isDarkMode ? "Light Mode" : "Dark Mode"}</span>
+                  <Download className="mr-2 h-4 w-4" />
+                  {downloadingBulk ? 'Downloading...' : `Download Selected (${selectedReports.size})`}
                 </button>
-              </div>
+              )}
+              
+              <button
+                onClick={toggleDarkMode}
+                className="flex items-center w-full px-3 py-2 text-gray-900 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition-colors duration-200"
+              >
+                {isDarkMode ? (
+                  <Sun className="w-5 h-5 mr-3 text-yellow-400" />
+                ) : (
+                  <Moon className="w-5 h-5 mr-3 text-gray-600" />
+                )}
+                <span>{isDarkMode ? "Light Mode" : "Dark Mode"}</span>
+              </button>
             </div>
           )}
         </div>
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Error Message */}
+        {error && (
+          <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 mb-6 flex items-start">
+            <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 mr-3 mt-0.5 flex-shrink-0" />
+            <div className="flex-1">
+              <p className="text-red-800 dark:text-red-300 font-medium">Error Loading Reports</p>
+              <p className="text-red-700 dark:text-red-400 text-sm mt-1">{error}</p>
+              <button
+                onClick={() => fetchReports()}
+                className="mt-2 text-sm text-red-600 dark:text-red-400 hover:underline font-medium"
+              >
+                Try Again
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Search and Filters */}
         <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm p-6 mb-6 transition-colors duration-300">
           <div className="space-y-4">
@@ -217,7 +385,6 @@ const ECGPDFDashboard = () => {
                 </div>
               </div>
               <button
-                type="button"
                 onClick={handleSearch}
                 className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 hover:border-red-300 dark:hover:border-red-600 transition-colors duration-200 flex items-center bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               >
@@ -225,7 +392,6 @@ const ECGPDFDashboard = () => {
                 Search
               </button>
               <button
-                type="button"
                 onClick={() => setShowFilters(!showFilters)}
                 className={`px-4 py-2 border rounded-lg flex items-center transition-colors duration-200 ${
                   showFilters 
@@ -278,7 +444,7 @@ const ECGPDFDashboard = () => {
               <div className="border-t border-gray-200 dark:border-gray-700 pt-4 transition-colors duration-300">
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-900 dark:text-white mb-2 transition-colors duration-200">
+                    <label className="block text-sm font-medium text-gray-900 dark:text-white mb-2">
                       <Calendar className="w-4 h-4 inline mr-1 text-red-600 dark:text-red-400" />
                       Test Date
                     </label>
@@ -294,7 +460,7 @@ const ECGPDFDashboard = () => {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-900 dark:text-white mb-2 transition-colors duration-200">
+                    <label className="block text-sm font-medium text-gray-900 dark:text-white mb-2">
                       <FileText className="w-4 h-4 inline mr-1 text-red-600 dark:text-red-400" />
                       Report Date
                     </label>
@@ -310,7 +476,7 @@ const ECGPDFDashboard = () => {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-900 dark:text-white mb-2 transition-colors duration-200">
+                    <label className="block text-sm font-medium text-gray-900 dark:text-white mb-2">
                       <MapPin className="w-4 h-4 inline mr-1 text-red-600 dark:text-red-400" />
                       Location
                     </label>
@@ -328,7 +494,6 @@ const ECGPDFDashboard = () => {
                 </div>
                 <div className="mt-4 flex justify-end">
                   <button
-                    type="button"
                     onClick={clearFilters}
                     className="px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors duration-200"
                   >
@@ -340,66 +505,114 @@ const ECGPDFDashboard = () => {
           </div>
         </div>
 
-        {/* Reports Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-          {reports.map((report) => (
-            <div
-              key={report.id}
-              className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6 hover:border-red-300 dark:hover:border-red-600 hover:shadow-md transition-all duration-300 shadow-sm"
-            >
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex-1">
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2 transition-colors duration-200">
-                    {report.patient_name}
-                  </h3>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex items-center text-gray-600 dark:text-gray-400">
-                      <Calendar className="mr-2 h-4 w-4 text-red-600 dark:text-red-400" />
-                      <span className="text-xs text-gray-500 dark:text-gray-500 mr-2">Test:</span>
-                      <span className="text-gray-900 dark:text-white transition-colors duration-200">{report.test_date}</span>
-                    </div>
-                    <div className="flex items-center text-gray-600 dark:text-gray-400">
-                      <FileText className="mr-2 h-4 w-4 text-red-600 dark:text-red-400" />
-                      <span className="text-xs text-gray-500 dark:text-gray-500 mr-2">Report:</span>
-                      <span className="text-gray-900 dark:text-white transition-colors duration-200">{report.report_date}</span>
-                    </div>
-                    <div className="flex items-center text-gray-600 dark:text-gray-400">
-                      <MapPin className="mr-2 h-4 w-4 text-red-600 dark:text-red-400" />
-                      <span className="text-xs text-gray-500 dark:text-gray-500 mr-2">Location:</span>
-                      <span className="text-gray-900 dark:text-white transition-colors duration-200">{report.location}</span>
-                    </div>
-                  </div>
-                </div>
-                <span className="text-xs bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300 px-2 py-1 rounded-full transition-colors duration-200">
-                  #{report.id}
-                </span>
-              </div>
-
-              <div className="flex space-x-2">
-                <button
-                  onClick={() => handleViewReport(report)}
-                  className="flex-1 flex items-center justify-center px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors duration-200 text-sm font-medium shadow-sm"
-                >
-                  <Eye className="mr-1 h-4 w-4" />
-                  View
-                </button>
-                <button
-                  onClick={() => handleDownloadReport(report)}
-                  className="flex-1 flex items-center justify-center px-3 py-2 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-900 dark:text-white rounded-lg transition-colors duration-200 text-sm font-medium bg-white dark:bg-gray-700"
-                >
-                  <Download className="mr-1 h-4 w-4" />
-                  Download
-                </button>
-              </div>
+        {/* Reports Table */}
+        {reports.length > 0 && (
+          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm overflow-hidden mb-8 transition-colors duration-300">
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
+                  <tr>
+                    <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      <div className="flex items-center">
+                        <input
+                          type="checkbox"
+                          checked={isAllSelected}
+                          ref={input => {
+                            if (input) {
+                              input.indeterminate = isIndeterminate;
+                            }
+                          }}
+                          onChange={toggleSelectAll}
+                          className="h-4 w-4 text-red-600 focus:ring-red-500 border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800"
+                        />
+                        <span className="ml-2">Select All</span>
+                      </div>
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      Patient Name
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      Test Date
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      Report Date
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      Location
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      Action
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                  {reports.map((report) => (
+                    <tr 
+                      key={report.id} 
+                      className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors duration-150"
+                    >
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <input
+                          type="checkbox"
+                          checked={selectedReports.has(report.id)}
+                          onChange={() => toggleSelectReport(report.id)}
+                          className="h-4 w-4 text-red-600 focus:ring-red-500 border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800"
+                        />
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm font-medium text-gray-900 dark:text-white">
+                          {report.patient_name}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-900 dark:text-white flex items-center">
+                          <Calendar className="w-4 h-4 mr-2 text-red-600 dark:text-red-400" />
+                          {report.test_date}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-900 dark:text-white flex items-center">
+                          <FileText className="w-4 h-4 mr-2 text-red-600 dark:text-red-400" />
+                          {report.report_date}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-900 dark:text-white flex items-center">
+                          <MapPin className="w-4 h-4 mr-2 text-red-600 dark:text-red-400" />
+                          {report.location || 'N/A'}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center space-x-2">
+                          <button
+                            onClick={() => handleViewReport(report)}
+                            className="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-lg text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors duration-200"
+                          >
+                            <Eye className="w-3 h-3 mr-1" />
+                            View
+                          </button>
+                          <button
+                            onClick={() => handleDownloadReport(report)}
+                            className="inline-flex items-center px-3 py-1.5 border border-gray-300 dark:border-gray-600 text-xs font-medium rounded-lg text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors duration-200"
+                          >
+                            <Download className="w-3 h-3 mr-1" />
+                            Download
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-          ))}
-        </div>
+          </div>
+        )}
 
         {/* Pagination */}
         {pagination.total_pages > 1 && (
           <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6 transition-colors duration-300">
             <div className="flex items-center justify-between">
-              <div className="text-sm text-gray-600 dark:text-gray-400 transition-colors duration-200">
+              <div className="text-sm text-gray-600 dark:text-gray-400">
                 Page {pagination.current_page} of {pagination.total_pages}
                 ({pagination.total_items} total items)
               </div>
@@ -409,11 +622,10 @@ const ECGPDFDashboard = () => {
                   disabled={!pagination.has_previous}
                   className="flex items-center px-3 py-2 bg-red-600 hover:bg-red-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded-lg transition-colors duration-200"
                 >
-                  <ChevronLeft className="h-4 w-4" />
+                  <ChevronLeft className="h-4 w-4 mr-1" />
                   Previous
                 </button>
                 
-                {/* Page numbers */}
                 <div className="flex items-center space-x-1">
                   {Array.from({ length: Math.min(5, pagination.total_pages) }, (_, i) => {
                     const pageNum = Math.max(1, pagination.current_page - 2) + i;
@@ -442,7 +654,7 @@ const ECGPDFDashboard = () => {
                   className="flex items-center px-3 py-2 bg-red-600 hover:bg-red-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded-lg transition-colors duration-200"
                 >
                   Next
-                  <ChevronRight className="h-4 w-4" />
+                  <ChevronRight className="h-4 w-4 ml-1" />
                 </button>
               </div>
             </div>
@@ -450,18 +662,18 @@ const ECGPDFDashboard = () => {
         )}
 
         {/* Empty State */}
-        {reports.length === 0 && !loading && (
-          <div className="text-center py-12">
-            <FileText className="mx-auto h-12 w-12 text-gray-400 dark:text-gray-600 mb-4 transition-colors duration-200" />
-            <h3 className="text-lg font-medium text-gray-500 dark:text-gray-400 mb-2 transition-colors duration-200">
+        {reports.length === 0 && !loading && !error && (
+          <div className="text-center py-12 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+            <FileText className="mx-auto h-12 w-12 text-gray-400 dark:text-gray-600 mb-4" />
+            <h3 className="text-lg font-medium text-gray-500 dark:text-gray-400 mb-2">
               No Reports Found
             </h3>
-            <p className="text-gray-400 dark:text-gray-500 transition-colors duration-200">
+            <p className="text-gray-400 dark:text-gray-500 mb-4">
               Try adjusting your search criteria or filters.
             </p>
             <button
               onClick={() => fetchReports()}
-              className="mt-4 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors duration-200"
+              className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors duration-200"
             >
               Refresh
             </button>

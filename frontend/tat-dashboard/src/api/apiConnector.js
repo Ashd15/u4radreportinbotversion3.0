@@ -82,17 +82,39 @@ export const searchPatients = (searchTerm, filters = {}) =>
   });
 
 // Upload ECG files with location
-export const uploadECGFiles = (files, locationId) => {
-  const formData = new FormData();
-  files.forEach(file => {
-    formData.append('ecg_file', file);
-  });
-  formData.append('location', locationId);
-  return ApiHandler.makeRequest('/upload-ecg/', {
-    method: 'POST',
-    body: formData,
-  });
+// apiConnector.js
+// ✅ uploadECGFiles.js
+export const uploadECGFiles = async (files, location) => {
+  try {
+    const formData = new FormData();
+
+    // Important: use `ecg_file[]` for multiple files
+    files.forEach(file => formData.append('ecg_file', file));
+
+    formData.append('location', location);
+
+    const token = localStorage.getItem('token');
+
+    const response = await fetch('http://127.0.0.1:8000/api/upload-ecg/', {
+      method: 'POST',
+      headers: {
+        'Authorization': token ? `Bearer ${token}` : '', 
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`Server error: ${response.status} - ${text}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Upload API error:', error);
+    throw error;
+  }
 };
+
 
 // Fetch patients for ECG dashboard
 export const fetchPatients = (params = {}) => {
@@ -127,36 +149,106 @@ export const addPatient = (patientData) => {
   });
 };
 
-// ====== NEW ECG PDF REPORT FUNCTIONS ======
 
-// Fetch ECG PDF Reports with filters and pagination
-export const fetchECGPDFReports = (params = {}) => {
-  const queryParams = new URLSearchParams();
-  
-  Object.keys(params).forEach((key) => {
-    if (params[key] !== undefined && params[key] !== null && params[key] !== '') {
-      queryParams.append(key, params[key]);
+
+// ====== ECG PDF REPORT FUNCTIONS ======
+
+// Fetch ECG PDF Reports
+export const fetchECGPDFReports = async (params = {}) => {
+  try {
+    let endpoint = "/ecg-reports";
+
+    // If params is a string, assume it's a raw query string
+    if (typeof params === "string") {
+      // Remove leading '?' if present
+      const queryString = params.startsWith("?") ? params.slice(1) : params;
+      endpoint += `?${queryString}`;
+    } else if (typeof params === "object" && params !== null) {
+      // Build query string from object
+      const queryParams = new URLSearchParams();
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== "") {
+          queryParams.append(key, value);
+        }
+      });
+      const queryString = queryParams.toString();
+      if (queryString) endpoint += `?${queryString}`;
     }
-  });
 
-  const queryString = queryParams.toString();
-  return ApiHandler.makeRequest(`/ecg-pdf-report/${queryString ? `?${queryString}` : ''}`);
+    console.log("Fetching ECG Reports from:", endpoint);
+
+    const response = await ApiHandler.makeRequest(endpoint);
+    console.log("ECG Reports API Response:", response);
+
+    if (response.success && response.data) {
+      if (response.data.success && response.data.data) {
+        return response.data;
+      } else if (response.data.pdfs) {
+        return { success: true, data: response.data };
+      } else {
+        console.error("Unexpected data structure:", response.data);
+        return response;
+      }
+    }
+
+    return response;
+  } catch (error) {
+    console.error("Error fetching ECG PDF reports:", error);
+    return { success: false, error: error.message, data: null };
+  }
 };
 
 // Download ECG PDF Report
 export const downloadECGPDFReport = async (reportId, patientName = 'Patient') => {
   try {
-    const response = await fetch(`http://127.0.0.1:8000/api/ecg-pdf-report/${reportId}/download/`);
+    const token = localStorage.getItem('token');
     
+    console.log('Downloading report ID:', reportId);
+    
+    // First, get the download URL from the API
+    const response = await fetch(`http://127.0.0.1:8000/api/ecg-reports/download/${reportId}/`, {
+      method: 'GET',
+      headers: {
+        'Authorization': token ? `Bearer ${token}` : '',
+        'Content-Type': 'application/json',
+      },
+    });
+
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    const blob = await response.blob();
+    const data = await response.json();
+    
+    console.log('Download API Response:', data);
+    
+    if (!data.success || !data.url) {
+      throw new Error(data.error || 'File URL not available');
+    }
+
+    // Construct full URL for the PDF file
+    const fullUrl = `http://127.0.0.1:8000${data.url}`;
+    
+    console.log('Downloading PDF from:', fullUrl);
+
+    // Fetch the actual PDF file
+    const fileResponse = await fetch(fullUrl, {
+      headers: {
+        'Authorization': token ? `Bearer ${token}` : '',
+      },
+    });
+
+    if (!fileResponse.ok) {
+      throw new Error('Failed to download file');
+    }
+
+    const blob = await fileResponse.blob();
     const url = window.URL.createObjectURL(blob);
+
+    // Create download link and trigger download
     const link = document.createElement('a');
     link.href = url;
-    link.download = `ECG_Report_${patientName}_${reportId}.pdf`;
+    link.download = `ECG_Report_${patientName.replace(/\s+/g, '_')}_${reportId}.pdf`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -171,13 +263,29 @@ export const downloadECGPDFReport = async (reportId, patientName = 'Patient') =>
 
 // View ECG PDF Report (opens in new tab)
 export const viewECGPDFReport = (pdfFilePath) => {
+  if (!pdfFilePath) {
+    console.error('No PDF file path provided');
+    alert('PDF file path is missing');
+    return;
+  }
+  
+  // Construct full URL
   const fullUrl = `http://127.0.0.1:8000${pdfFilePath}`;
-  window.open(fullUrl, '_blank');
+  
+  console.log('Opening PDF:', fullUrl);
+  
+  // Open in new tab
+  const newWindow = window.open(fullUrl, '_blank');
+  
+  // Check if popup was blocked
+  if (!newWindow || newWindow.closed || typeof newWindow.closed === 'undefined') {
+    alert('Please allow popups for this website to view the PDF');
+  }
 };
 
 // Get ECG PDF Report details
 export const getECGPDFReportDetails = (reportId) =>
-  ApiHandler.makeRequest(`/ecg-pdf-report/${reportId}/`);
+  ApiHandler.makeRequest(`/ecg-reports/${reportId}/`);
 
 // Search ECG PDF Reports
 export const searchECGPDFReports = (searchTerm, filters = {}) =>
