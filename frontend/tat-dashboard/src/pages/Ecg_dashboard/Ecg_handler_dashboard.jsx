@@ -166,11 +166,15 @@ export const addPatient = async (patientData) => {
 export const fetchECGPDFReports = async (params = {}) => {
   try {
     const response = await api.get("/ecg-reports/", { params });
-    return response.data;
+    return response.data || {}; // always return an object
   } catch (error) {
     handleError(error);
+
+    // Return a fallback object to avoid undefined
+    return { success: false, error: error.message || 'Failed to fetch ECG PDF reports' };
   }
 };
+
 
 export const getECGPDFReportDetails = async (reportId) => {
   try {

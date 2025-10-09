@@ -48,90 +48,67 @@ const ECGPDFDashboard = () => {
     fetchReports();
   }, []);
 
-  const fetchReports = async (params = {}) => {
-    setLoading(true);
-    setError(null);
-    
-    try {
-      console.log('Fetching reports with params:', params);
-      
-      // Build query parameters properly
-      const queryParams = new URLSearchParams();
-      
-      if (params.search) queryParams.append('search', params.search);
-      if (params.test_date) queryParams.append('test_date', params.test_date);
-      if (params.report_date) queryParams.append('report_date', params.report_date);
-      if (params.location) queryParams.append('location', params.location);
-      if (params.page) queryParams.append('page', params.page);
-      
-      const queryString = queryParams.toString();
-      const finalParams = queryString ? `?${queryString}` : '';
-      
-      const response = await fetchECGPDFReports(finalParams);
+  const fetchReports = async (filters = {}) => {
+  setLoading(true);
+  setError(null);
 
-      console.log('Full API Response:', response);
-      console.log('Response structure:', {
-        hasSuccess: 'success' in response,
-        successValue: response.success,
-        hasData: 'data' in response,
-        dataType: typeof response.data,
-        dataKeys: response.data ? Object.keys(response.data) : 'no data'
+  try {
+    // Build params object safely
+    const params = {
+      search: filters.search || searchTerm || undefined,
+      test_date: filters.test_date || selectedTestDate || undefined,
+      report_date: filters.report_date || selectedReportDate || undefined,
+      location: filters.location || selectedLocation || undefined,
+      page: filters.page || 1,
+    };
+
+    console.log('Fetching reports with params:', params);
+
+    // Pass params object directly to Axios; no query string manually
+    const response = await fetchECGPDFReports(params);
+    console.log('Full API Response:', response);
+
+    // Determine actual data structure
+    let actualData = null;
+
+    if (response?.data?.pdfs) {
+      // Case: data contains pdfs
+      actualData = response.data;
+    } else if (response?.pdfs) {
+      // Case: pdfs directly in response
+      actualData = response;
+    } else if (response?.data?.success && response?.data?.data?.pdfs) {
+      // Case: nested success/data structure
+      actualData = response.data.data;
+    }
+
+    // Populate state if pdfs exist
+    if (actualData?.pdfs) {
+      setReports(actualData.pdfs || []);
+      setPagination(actualData.pagination || {});
+      setAvailableFilters({
+        testDates: actualData.Test_Date || actualData.testDates || [],
+        reportDates: actualData.Report_Date || actualData.reportDates || [],
+        locations: actualData.Location || actualData.locations || [],
       });
-
-      if (response && response.success) {
-        let actualData = null;
-        
-        if (response.data && response.data.success && response.data.data) {
-          console.log('Case 1: Nested success/data structure');
-          actualData = response.data.data;
-        }
-        else if (response.data && response.data.pdfs) {
-          console.log('Case 2: Direct pdfs in response.data');
-          actualData = response.data;
-        }
-        else if (response.pdfs) {
-          console.log('Case 3: Direct pdfs in response');
-          actualData = response;
-        }
-        
-        if (actualData && actualData.pdfs) {
-          console.log('Setting reports:', actualData.pdfs.length, 'items');
-          setReports(actualData.pdfs || []);
-          setPagination(actualData.pagination || {});
-          
-          // Set available filters with proper fallbacks
-          setAvailableFilters({
-            testDates: actualData.Test_Date || actualData.testDates || [],
-            reportDates: actualData.Report_Date || actualData.reportDates || [],
-            locations: actualData.Location || actualData.locations || []
-          });
-          
-          // Clear selected reports when data changes
-          setSelectedReports(new Set());
-        } else {
-          console.error('Could not find pdfs in response. Full response:', JSON.stringify(response, null, 2));
-          setError('No reports data found in server response');
-          setReports([]);
-          setPagination({});
-          setAvailableFilters({});
-        }
-      } else {
-        console.error('Response not successful:', response);
-        setError(response.error || response.message || 'Failed to fetch reports');
-        setReports([]);
-        setPagination({});
-        setAvailableFilters({});
-      }
-    } catch (error) {
-      console.error('Error in fetchReports:', error);
-      setError(error.message || 'An error occurred while fetching reports');
+      setSelectedReports(new Set());
+    } else {
+      console.error('No pdfs found in response:', response);
+      setError('No reports data found');
       setReports([]);
       setPagination({});
       setAvailableFilters({});
-    } finally {
-      setLoading(false);
     }
-  };
+  } catch (err) {
+    console.error('Error fetching reports:', err);
+    setError(err.message || 'An error occurred while fetching reports');
+    setReports([]);
+    setPagination({});
+    setAvailableFilters({});
+  } finally {
+    setLoading(false);
+  }
+};
 
   const handleSearch = () => {
     const searchParams = {
