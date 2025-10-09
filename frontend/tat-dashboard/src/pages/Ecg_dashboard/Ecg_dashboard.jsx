@@ -5,27 +5,25 @@ import {
   fetchECGPatients, 
   markPatientAsUrgent, 
   markPatientForNonReported,
-  updatePatientStatus,
   bulkUpdatePatients,
-  exportPatientsData,
-  getPatientDetails,
-  uploadECGFiles
+  uploadECGFiles,
+  fetchLocations,
+  fetchCardiologists,
+  fetchECGStats,
+  assignCardiologist,
+  updateECGPatient
 } from './Ecg_handler_dashboard';
-import Header from '../doctor/Header';
 
 const ECGDashboard = () => {
   const [isDarkMode, setIsDarkMode] = useState(() => {
-    // Check local storage or system preference
     const saved = localStorage.getItem('darkMode');
     return saved ? JSON.parse(saved) : window.matchMedia('(prefers-color-scheme: dark)').matches;
   });
 
-  // Toggle dark mode function
   const toggleDarkMode = () => {
     setIsDarkMode(!isDarkMode);
   };
 
-  // Save dark mode preference to localStorage
   useEffect(() => {
     localStorage.setItem('darkMode', JSON.stringify(isDarkMode));
     if (isDarkMode) {
@@ -72,35 +70,23 @@ const ECGDashboard = () => {
     "Unreported Cases": 0,
     "Unallocated Cases": 0,
     "Total Uploaded Cases": 0,
-    // "Reported Cases": 0,
     "Rejected Cases": 0
   });
 
   useEffect(() => {
     loadMetadata();
     loadPatients();
-    fetchStats();
+    loadStats();
   }, [currentPage, sortBy, sortOrder, filters]);
 
   const loadMetadata = async () => {
     try {
-      // Fetch locations
-      const locationsResponse = await fetch('http://127.0.0.1:8000/api/get-locations/');
-      if (locationsResponse.ok) {
-        const data = await locationsResponse.json();
-        setLocations(data.locations || []); // ✅ extract the array
-      } else {
-        setLocations([]);
-      }
-
-      // Fetch cardiologists
-      const cardiologistsResponse = await fetch('http://127.0.0.1:8000/api/cardiologists/');
-      if (cardiologistsResponse.ok) {
-        const data = await cardiologistsResponse.json();
-        setCardiologists(data.cardiologists || []); // ✅ extract array
-      } else {
-        setCardiologists([]);
-      }
+      const [locationsData, cardiologistsData] = await Promise.all([
+        fetchLocations(),
+        fetchCardiologists()
+      ]);
+      setLocations(locationsData);
+      setCardiologists(cardiologistsData);
     } catch (error) {
       console.error('Error loading metadata:', error);
       setLocations([]);
@@ -108,97 +94,89 @@ const ECGDashboard = () => {
     }
   };
 
-  const fetchStats = async () => {
+  const loadStats = async () => {
     try {
-      const response = await fetch('http://127.0.0.1:8000/api/ecg_stats/');
-      if (response.ok) {
-        const data = await response.json();
-        setStats(data.stats);
-      }
+      const statsData = await fetchECGStats();
+      setStats(statsData);
     } catch (error) {
       console.error('Error fetching stats:', error);
     }
   };
 
   const loadPatients = async () => {
-  try {
-    setLoading(true);
-    setError(null);
+    try {
+      setLoading(true);
+      setError(null);
 
-    // ✅ Enhanced ordering logic
-    let ordering = '';
-    const orderPrefix = sortOrder === 'desc' ? '-' : '';
+      let ordering = '';
+      const orderPrefix = sortOrder === 'desc' ? '-' : '';
 
-    switch (sortBy) {
-      case 'date':
-        ordering = `${orderPrefix}Date`;
-        break;
-      case 'name':
-        ordering = `${orderPrefix}PatientName`;
-        break;
-      case 'age':
-        ordering = `${orderPrefix}Age`;
-        break;
-      case 'heart_rate':
-        ordering = `${orderPrefix}HeartRate`;
-        break;
-      case 'patient_id':
-        ordering = `${orderPrefix}PatientId`;
-        break;
-      case 'status':
-        ordering = `${orderPrefix}isDone`;
-        break;
-      case 'urgent':
-        ordering = `${orderPrefix}MarkAsUrgent`;
-        break;
-      default:
-        ordering = '-Date'; // Default: latest first
+      switch (sortBy) {
+        case 'date':
+          ordering = `${orderPrefix}Date`;
+          break;
+        case 'name':
+          ordering = `${orderPrefix}PatientName`;
+          break;
+        case 'age':
+          ordering = `${orderPrefix}Age`;
+          break;
+        case 'heart_rate':
+          ordering = `${orderPrefix}HeartRate`;
+          break;
+        case 'patient_id':
+          ordering = `${orderPrefix}PatientId`;
+          break;
+        case 'status':
+          ordering = `${orderPrefix}isDone`;
+          break;
+        case 'urgent':
+          ordering = `${orderPrefix}MarkAsUrgent`;
+          break;
+        default:
+          ordering = '-Date';
+      }
+
+      const params = {
+        page: currentPage,
+        search: searchTerm,
+        ordering: ordering,
+        ...Object.fromEntries(
+          Object.entries(filters).filter(([_, value]) => value !== '' && value !== false)
+        ),
+      };
+
+      const response = await fetchECGPatients(params);
+
+      const rawData = response?.data || response;
+      const patientList = Array.isArray(rawData)
+        ? rawData
+        : rawData?.patients || rawData?.results || rawData?.data || [];
+
+      const totalPages =
+        rawData?.num_pages ||
+        rawData?.total_pages ||
+        rawData?.pagination?.pages ||
+        1;
+
+      const totalPatients =
+        rawData?.total ||
+        rawData?.count ||
+        rawData?.pagination?.total_items ||
+        patientList.length;
+
+      setPatients(patientList);
+      setTotalPages(totalPages);
+      setTotalPatients(totalPatients);
+
+      await loadStats();
+    } catch (error) {
+      console.error('Error loading patients:', error);
+      setError('Failed to load patient data. Please try again.');
+    } finally {
+      setLoading(false);
     }
-
-    const params = {
-      page: currentPage,
-      search: searchTerm,
-      ordering: ordering,
-      ...Object.fromEntries(
-        Object.entries(filters).filter(([_, value]) => value !== '' && value !== false)
-      ),
-    };
-
-    const response = await fetchECGPatients(params);
-
-    // ✅ Handle different possible response structures safely
-    const rawData = response?.data || response;
-    const patientList = Array.isArray(rawData)
-      ? rawData
-      : rawData?.patients || rawData?.results || rawData?.data || [];
-
-    const totalPages =
-      rawData?.num_pages ||
-      rawData?.total_pages ||
-      rawData?.pagination?.pages ||
-      1;
-
-    const totalPatients =
-      rawData?.total ||
-      rawData?.count ||
-      rawData?.pagination?.total_items ||
-      patientList.length;
-
-    // ✅ Update state safely
-    setPatients(patientList);
-    setTotalPages(totalPages);
-    setTotalPatients(totalPatients);
-
-    // ✅ Refresh stats after loading patients
-    await fetchStats();
-  } catch (error) {
-    console.error('Error loading patients:', error);
-    setError('Failed to load patient data. Please try again.');
-  } finally {
-    setLoading(false);
-  }
-};
-
+  };
 
   const handleSearch = () => {
     setCurrentPage(1);
@@ -271,7 +249,6 @@ const ECGDashboard = () => {
   const handleSavePatient = async () => {
     if (!editingPatient) return;
 
-    // Validation
     if (!editingPatient.PatientName.trim()) {
       setError('Patient name is required.');
       return;
@@ -290,31 +267,19 @@ const ECGDashboard = () => {
     }
 
     try {
-      const response = await fetch(`http://127.0.0.1:8000/api/ecg_patients/${editingPatient.id}/`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          PatientName: editingPatient.PatientName.trim(),
-          PatientId: editingPatient.PatientId.trim(),
-          age: parseInt(editingPatient.Age),   // 👈 lowercase here
-          HeartRate: parseInt(editingPatient.HeartRate)
-        })
+      const updatedPatient = await updateECGPatient(editingPatient.id, {
+        PatientName: editingPatient.PatientName.trim(),
+        PatientId: editingPatient.PatientId.trim(),
+        age: parseInt(editingPatient.Age),
+        HeartRate: parseInt(editingPatient.HeartRate)
       });
 
-      if (response.ok) {
-        const updatedPatient = await response.json();
-        setPatients(prev => prev.map(p => 
-          p.id === editingPatient.id ? { ...p, ...updatedPatient } : p
-        ));
-        setShowEditModal(false);
-        setEditingPatient(null);
-        setError(null);
-      } else {
-        const errorData = await response.json();
-        setError(errorData.error || 'Failed to update patient information.');
-      }
+      setPatients(prev => prev.map(p => 
+        p.id === editingPatient.id ? { ...p, ...updatedPatient } : p
+      ));
+      setShowEditModal(false);
+      setEditingPatient(null);
+      setError(null);
     } catch (error) {
       console.error('Error updating patient:', error);
       setError('Failed to update patient information.');
@@ -350,93 +315,73 @@ const ECGDashboard = () => {
   };
 
   const handleUpload = async () => {
-  if (!uploadData.files.length || !uploadData.location) {
-    alert('Please select files and a location!');
-    return;
-  }
-
-  try {
-    const response = await uploadECGFiles(uploadData.files, uploadData.location);
-
-    console.log('Upload response:', response);
-
-    if (response.success) {
-      alert('Files uploaded successfully!');
-      setShowUploadModal(false);
-      setUploadData({ files: [], location: '' });
-      loadPatients(); // refresh table
-    } else {
-      const errorMsg = response.error || 'Unknown error';
-      alert('Upload failed: ' + errorMsg);
-
-      if (response.missing_id) console.warn('Missing IDs:', response.missing_id);
-      if (response.processing_error) console.warn('Processing errors:', response.processing_error);
+    if (!uploadData.files.length || !uploadData.location) {
+      alert('Please select files and a location!');
+      return;
     }
-  } catch (error) {
-    console.error('Upload error:', error);
-    alert('An error occurred while uploading files.');
-  }
-};
 
+    try {
+      const response = await uploadECGFiles(uploadData.files, uploadData.location);
+
+      if (response.success) {
+        alert('Files uploaded successfully!');
+        setShowUploadModal(false);
+        setUploadData({ files: [], location: '' });
+        loadPatients();
+      } else {
+        const errorMsg = response.error || 'Unknown error';
+        alert('Upload failed: ' + errorMsg);
+
+        if (response.missing_id) console.warn('Missing IDs:', response.missing_id);
+        if (response.processing_error) console.warn('Processing errors:', response.processing_error);
+      }
+    } catch (error) {
+      console.error('Upload error:', error);
+      alert('An error occurred while uploading files.');
+    }
+  };
 
   const handleAssignCardiologist = async (cardiologistId) => {
-  try {
-    if (selectedRows.length === 0) {
-      setError('Please select at least one patient.');
-      return;
-    }
+    try {
+      if (selectedRows.length === 0) {
+        setError('Please select at least one patient.');
+        return;
+      }
 
-    const cardiologist = cardiologists.find(c => c.id === cardiologistId);
-    if (!cardiologist) {
-      setError('Invalid cardiologist selected.');
-      return;
-    }
+      const cardiologist = cardiologists.find(c => c.id === cardiologistId);
+      if (!cardiologist) {
+        setError('Invalid cardiologist selected.');
+        return;
+      }
 
-    const anyAllocated = selectedRows.some(id => {
-      const patient = patients.find(p => p.id === id);
-      return patient && patient.Allocated;
-    });
-    const action = anyAllocated ? 'replace' : 'assign';
-
-    const response = await fetch('http://127.0.0.1:8000/api/manage-cardiologist/', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        patient_ids: selectedRows.map(id => patients.find(p => p.id === id).id),
-        cardiologist_email: cardiologist.email,
-        action: action
-      })
-    });
-
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(`Server returned ${response.status}: ${text}`);
-    }
-
-    const data = await response.json();
-
-    if (data.success) {
-      const updatedPatients = patients.map(p => {
-        if (data.updated_patients.includes(p.id)) {
-          return { ...p, Allocated: cardiologist.name };
-        }
-        return p;
+      const anyAllocated = selectedRows.some(id => {
+        const patient = patients.find(p => p.id === id);
+        return patient && patient.Allocated;
       });
-      setPatients(updatedPatients);
-      setShowAssignModal(false);
-      setSelectedRows([]);
-    } else {
-      setError(data.error || 'Failed to assign cardiologist.');
+      const action = anyAllocated ? 'replace' : 'assign';
+
+      const patientIdsToAssign = selectedRows.map(id => patients.find(p => p.id === id).id);
+
+      const data = await assignCardiologist(patientIdsToAssign, cardiologist.email, action);
+
+      if (data.success) {
+        const updatedPatients = patients.map(p => {
+          if (data.updated_patients.includes(p.id)) {
+            return { ...p, Allocated: cardiologist.name };
+          }
+          return p;
+        });
+        setPatients(updatedPatients);
+        setShowAssignModal(false);
+        setSelectedRows([]);
+      } else {
+        setError(data.error || 'Failed to assign cardiologist.');
+      }
+    } catch (error) {
+      console.error('Error assigning cardiologist:', error);
+      setError(`Failed to assign cardiologist. ${error.message}`);
     }
-
-  } catch (error) {
-    console.error('Error assigning cardiologist:', error);
-    setError(`Failed to assign cardiologist. ${error.message}`);
-  }
-};
-
+  };
 
   const handleBulkAction = async (action) => {
     if (selectedRows.length === 0) {
@@ -464,43 +409,31 @@ const ECGDashboard = () => {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem("token");   // or whatever key you use
-    window.location.href = "/";    // redirect to login page
+    localStorage.removeItem("token");
+    window.location.href = "/";
   };
 
   const handleExport = () => {
-    // Navigate to ECG PDF Dashboard
     navigate('/ecg-pdf-dashboard');
   };
 
   const filteredPatients = patients.filter(patient => {
-    // Search filter
     if (searchTerm &&
         !patient.PatientName?.toLowerCase().includes(searchTerm.toLowerCase()) &&
         !patient.PatientId?.toLowerCase().includes(searchTerm.toLowerCase())) {
       return false;
     }
 
-    // Status filter
     if (filters.status) {
       if (filters.status === 'reported' && !patient.isDone) return false;
       if (filters.status === 'non-reportable' && !patient.MarkForNonReported) return false;
       if (filters.status === 'unreported' && (patient.isDone || patient.MarkForNonReported)) return false;
     }
 
-    // Location filter
     if (filters.location && patient.Location !== filters.location) return false;
-
-    // City filter
     if (filters.city && patient.City !== filters.city) return false;
-
-    // Allocated filter
     if (filters.allocated && patient.Allocated !== filters.allocated) return false;
-
-    // Date filter (exact date match)
     if (filters.date && patient.Date !== filters.date) return false;
-
-    // Urgent only filter
     if (filters.urgent_only && !patient.MarkAsUrgent) return false;
 
     return true;

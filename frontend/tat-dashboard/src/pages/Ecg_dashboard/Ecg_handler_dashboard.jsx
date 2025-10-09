@@ -112,6 +112,51 @@ export const searchPatients = async (searchTerm, filters = {}) => {
 };
 
 // ==========================================================
+// ✅ METADATA (LOCATIONS & CARDIOLOGISTS)
+// ==========================================================
+
+export const fetchLocations = async () => {
+  try {
+    const response = await api.get("/get-locations/");
+    return response.data.locations || [];
+  } catch (error) {
+    console.error("Error loading locations:", error);
+    return [];
+  }
+};
+
+export const fetchCardiologists = async () => {
+  try {
+    const response = await api.get("/cardiologists/");
+    return response.data.cardiologists || [];
+  } catch (error) {
+    console.error("Error loading cardiologists:", error);
+    return [];
+  }
+};
+
+// ==========================================================
+// ✅ STATISTICS
+// ==========================================================
+
+export const fetchECGStats = async () => {
+  try {
+    const response = await api.get("/ecg_stats/");
+    return response.data.stats;
+  } catch (error) {
+    console.error("Error fetching stats:", error);
+    return {
+      "Current Uploaded": 0,
+      "Current Reported": 0,
+      "Unreported Cases": 0,
+      "Unallocated Cases": 0,
+      "Total Uploaded Cases": 0,
+      "Rejected Cases": 0
+    };
+  }
+};
+
+// ==========================================================
 // ✅ ECG FILE UPLOADS
 // ==========================================================
 
@@ -160,21 +205,36 @@ export const addPatient = async (patientData) => {
 };
 
 // ==========================================================
+// ✅ CARDIOLOGIST MANAGEMENT
+// ==========================================================
+
+export const assignCardiologist = async (patientIds, cardiologistEmail, action = 'assign') => {
+  try {
+    const response = await api.post("/manage-cardiologist/", {
+      patient_ids: patientIds,
+      cardiologist_email: cardiologistEmail,
+      action: action
+    });
+    return response.data;
+  } catch (error) {
+    handleError(error, "Failed to assign cardiologist.");
+    throw error;
+  }
+};
+
+// ==========================================================
 // ✅ ECG PDF REPORTS
 // ==========================================================
 
 export const fetchECGPDFReports = async (params = {}) => {
   try {
     const response = await api.get("/ecg-reports/", { params });
-    return response.data || {}; // always return an object
+    return response.data || {};
   } catch (error) {
     handleError(error);
-
-    // Return a fallback object to avoid undefined
     return { success: false, error: error.message || 'Failed to fetch ECG PDF reports' };
   }
 };
-
 
 export const getECGPDFReportDetails = async (reportId) => {
   try {
