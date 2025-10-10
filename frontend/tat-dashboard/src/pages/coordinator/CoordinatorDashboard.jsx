@@ -1,15 +1,19 @@
-import React, { useEffect, useState } from "react";
-import CoordinatorHandler from "./CoordinatorHandler";
+import React, { useEffect, useState, useRef } from "react";
+import CoordinatorHandler from "./components/CoordinatorHandler";
 import Select from "react-select";
 import { useNavigate } from 'react-router-dom';
+import CoordinatorHeader from "./components/CoordinatorHeader";
+import CoordinatorFilters from "./components/CoordinatorFilters";
+import CoordinatorGridTable from "./components/CoordinatorGridTable";
 
 const Coordinator = () => {
   const [coordinators, setCoordinators] = useState([]);
   const [patients, setPatients] = useState([]);
   const [filteredPatients, setFilteredPatients] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showProfile, setShowProfile] = useState(false);
   const [selectedPatients, setSelectedPatients] = useState([]);
+  const [headerHeight, setHeaderHeight] = useState(0);
+  const [filterHeight, setFilterHeight] = useState(0);
   const [radiologists, setRadiologists] = useState([]);
   const [selectedRadiologist, setSelectedRadiologist] = useState('');
   const [selectedReport, setSelectedReport] = useState(null);
@@ -18,13 +22,12 @@ const Coordinator = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [viewMode, setViewMode] = useState('table');
   const [showInstitutionDropdown, setShowInstitutionDropdown] = useState(false);
-    const navigate = useNavigate();
-  
-  // New states for dark mode and logout
-  const [darkMode, setDarkMode] = useState(false);
-  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const navigate = useNavigate();
+  const filterRef = useRef(null);
+  const headerRef = useRef(null);
 
-  // Filter states
+  const [darkMode, setDarkMode] = useState(false);
+
   const [filters, setFilters] = useState({
     bodyPart: '',
     allocated: '',
@@ -35,16 +38,12 @@ const Coordinator = () => {
     institution: ''
   });
 
-  const [dateFilter, setDateFilter] = useState('');
-  const [showDatePicker, setShowDatePicker] = useState(false);
-  // State to store live time remaining for each patient
   const [liveTimeRemaining, setLiveTimeRemaining] = useState({});  
 
   const user = JSON.parse(localStorage.getItem("user"))?.user;
   const firstName = user?.first_name || "";
   const lastName = user?.last_name || "";
 
-  // Persist dark mode preference
   useEffect(() => {
     const savedDarkMode = localStorage.getItem('darkMode') === 'true';
     setDarkMode(savedDarkMode);
@@ -52,8 +51,6 @@ const Coordinator = () => {
 
   useEffect(() => {
     localStorage.setItem('darkMode', darkMode.toString());
-    
-    // Update document class for Tailwind dark mode
     if (darkMode) {
       document.documentElement.classList.add('dark');
     } else {
@@ -61,10 +58,6 @@ const Coordinator = () => {
     }
   }, [darkMode]);
 
-
-
-
-  // Get unique filter options
   const getUniqueOptions = (field) => {
     const options = patients.map(p => {
       switch(field) {
@@ -78,12 +71,11 @@ const Coordinator = () => {
     return [...new Set(options)];
   };
 
-  // Calculate dashboard stats
   const getDashboardStats = () => {
     const totalCases = patients.length;
     const pendingCases = patients.filter(p => !p.is_done).length;
     const reportedCases = patients.filter(p => p.is_done).length;
-    const overdueCases = patients.filter(p => p.tat_breached && !p.is_done).length; // Only pending overdue cases
+    const overdueCases = patients.filter(p => p.tat_breached && !p.is_done).length;
     
     return { totalCases, pendingCases, reportedCases, overdueCases };
   };
@@ -116,43 +108,40 @@ const Coordinator = () => {
     }
   };
 
-  // Initialize live time remaining when patients data is loaded
-useEffect(() => {
-  if (patients.length > 0) {
-    const initialTimes = {};
-    patients.forEach(patient => {
-      if (!patient.is_done && patient.time_remaining !== null) {
-        initialTimes[patient.id] = patient.time_remaining;
-      }
-    });
-    setLiveTimeRemaining(initialTimes);
-  }
-}, [patients]);
-
-// Countdown timer effect
-useEffect(() => {
-  const timer = setInterval(() => {
-    setLiveTimeRemaining(prev => {
-      const updated = { ...prev };
-      let hasChanges = false;
-      
-      Object.keys(updated).forEach(patientId => {
-        const patient = patients.find(p => p.id === parseInt(patientId));
-        
-        if (patient && !patient.is_done) {
-          updated[patientId] = updated[patientId] - 1;
-          hasChanges = true;
+  useEffect(() => {
+    if (patients.length > 0) {
+      const initialTimes = {};
+      patients.forEach(patient => {
+        if (!patient.is_done && patient.time_remaining !== null) {
+          initialTimes[patient.id] = patient.time_remaining;
         }
       });
-      
-      return hasChanges ? updated : prev;
-    });
-  }, 1000);
+      setLiveTimeRemaining(initialTimes);
+    }
+  }, [patients]);
 
-  return () => clearInterval(timer);
-}, [patients]);
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setLiveTimeRemaining(prev => {
+        const updated = { ...prev };
+        let hasChanges = false;
+        
+        Object.keys(updated).forEach(patientId => {
+          const patient = patients.find(p => p.id === parseInt(patientId));
+          
+          if (patient && !patient.is_done) {
+            updated[patientId] = updated[patientId] - 1;
+            hasChanges = true;
+          }
+        });
+        
+        return hasChanges ? updated : prev;
+      });
+    }, 1000);
 
-  // Apply filters
+    return () => clearInterval(timer);
+  }, [patients]);
+
   useEffect(() => {
     let filtered = [...patients];
 
@@ -186,28 +175,19 @@ useEffect(() => {
     }
 
     filtered.sort((a, b) => {
-      // Priority 1: Urgent AND not reported (not done)
       const aUrgentUnreported = a.urgent && !a.is_done;
       const bUrgentUnreported = b.urgent && !b.is_done;
       
       if (aUrgentUnreported && !bUrgentUnreported) return -1;
       if (!aUrgentUnreported && bUrgentUnreported) return 1;
       
-      // Priority 2: Overdue cases (for remaining non-urgent patients)
       const aOverdue = a.tat_breached && !a.is_done;
       const bOverdue = b.tat_breached && !b.is_done;
       
       if (aOverdue && !bOverdue) return -1;
       if (!aOverdue && bOverdue) return 1;
       
-      // Priority 3: Reverse chronological order (latest first) for all remaining
-      // Assuming patients have an 'id' that increases with time, or use 'study_date'
-      return b.id - a.id; // Latest patient IDs come first
-      
-      // Alternative: If you want to sort by study_date instead:
-      // const dateA = new Date(a.study_date + ' ' + (a.study_time || '00:00:00'));
-      // const dateB = new Date(b.study_date + ' ' + (b.study_time || '00:00:00'));
-      // return dateB - dateA;
+      return b.id - a.id;
     });
 
     setFilteredPatients(filtered);
@@ -221,19 +201,17 @@ useEffect(() => {
   };
 
   const handlePatientSelect = (patientId) => {
-    setSelectedPatients(prev => 
-      prev.includes(patientId) 
-        ? prev.filter(id => id !== patientId)
-        : [...prev, patientId]
-    );
-  };
-
-
-   const getGreeting = () => {
-    const hour = new Date().getHours();
-    if (hour < 12) return "Good Morning";
-    else if (hour < 18) return "Good Afternoon";
-    else return "Good Evening";
+    if (patientId === 'all') {
+      setSelectedPatients(filteredPatients.map(p => p.id));
+    } else if (patientId === 'clear') {
+      setSelectedPatients([]);
+    } else {
+      setSelectedPatients(prev => 
+        prev.includes(patientId) 
+          ? prev.filter(id => id !== patientId)
+          : [...prev, patientId]
+      );
+    }
   };
 
   const handleAssignRadiologist = async () => {
@@ -253,7 +231,6 @@ useEffect(() => {
         )
       );
       
-      // Refresh data after assignment
       await fetchData();
       setSelectedPatients([]);
       setSelectedRadiologist('');
@@ -264,110 +241,70 @@ useEffect(() => {
     }
   };
 
-  const handleLogout = async () => {
+  const handleSaveReport = async (newData, historyFiles) => {
     try {
-      // Call your logout API if you have one
-      await CoordinatorHandler.logout?.();
-      
-      // Clear local storage or tokens
-      localStorage.removeItem('authToken');
-      localStorage.removeItem('userData');
-      localStorage.removeItem('darkMode');
-      
-      // Redirect to login page or reload
-      window.location.href = '/';
+      await CoordinatorHandler.updatePatient(
+        selectedReport.id,
+        newData,
+        historyFiles
+      );
+  
+      alert("Patient updated successfully ✅");
+      setSelectedReport(null);
+      fetchData();
     } catch (error) {
-      console.error('Logout error:', error);
-      // Fallback: clear storage and redirect anyway
-      localStorage.clear();
-      window.location.href = '/';
+      console.error("Error updating patient:", error);
+      alert("Failed to update patient ❌");
     }
   };
 
-  const formatDate = (dateString) => {
-    if (!dateString) return 'N/A';
-    return new Date(dateString).toLocaleDateString();
-  };
-
-  const formatTime = (timeString) => {
-    if (!timeString) return 'N/A';
-    return new Date(`2000-01-01T${timeString}`).toLocaleTimeString();
-  };
-
-  if (loading) {
-    return (
-      <div className={`flex justify-center items-center min-h-screen transition-colors duration-200 ${
-        darkMode ? 'bg-gray-900' : 'bg-gradient-to-br from-blue-50 to-indigo-100'
-      }`}>
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-4 border-blue-500 border-t-transparent mx-auto mb-4"></div>
-          <p className={`text-lg font-medium ${darkMode ? 'text-white' : 'text-gray-600'}`}>Loading Dashboard...</p>
-        </div>
-      </div>
-    );
-  }
-
-  const handleSaveReport = async (newData, historyFiles) => {
-     try {
-       await CoordinatorHandler.updatePatient(
-         selectedReport.id,   // patient ID
-         newData,             // updated fields
-         historyFiles         // attached files
-       );
-   
-       alert("Patient updated successfully ✅");
-       setSelectedReport(null); // close modal
-       fetchData();             // refresh list
-     } catch (error) {
-       console.error("Error updating patient:", error);
-       alert("Failed to update patient ❌");
-     }
-   };
-  
-
   const bodyPartOptions = bodyParts
-      .sort((a, b) => a.name.localeCompare(b.name))
-      .map((part) => ({
-        value: part.name,
-        label: part.name,
-      }));
-    
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .map((part) => ({
+      value: part.name,
+      label: part.name,
+    }));
 
-   const formatTimeRemaining = (timeRemaining, isDone, overdueSeconds) => {
-     if (isDone) {
-       // For completed reports, show total time taken
-       if (overdueSeconds) {
-         const absTime = Math.abs(overdueSeconds);
-         const hours = Math.floor(absTime / 3600);
-         const minutes = Math.floor((absTime % 3600) / 60);
-         const seconds = absTime % 60;
-         return `Completed in ${hours}h ${minutes}m ${seconds}s`;
-       }
-       return 'Completed';
-     }
-     
-     // For pending reports, show remaining/overdue time
-     if (timeRemaining === null || timeRemaining === undefined) return 'N/A';
-     
-     const absTime = Math.abs(timeRemaining);
-     const hours = Math.floor(absTime / 3600);
-     const minutes = Math.floor((absTime % 3600) / 60);
-     const seconds = absTime % 60;
-     
-     if (timeRemaining < 0) {
-       return `Overdue by ${hours}h ${minutes}m ${seconds}s`;
-     } else {
-       return `${hours}h ${minutes}m ${seconds}s remaining`;
-     }
-   };
+  const formatTimeRemaining = (timeRemaining, isDone, overdueSeconds) => {
+    if (isDone) {
+      if (overdueSeconds) {
+        const absTime = Math.abs(overdueSeconds);
+        const hours = Math.floor(absTime / 3600);
+        const minutes = Math.floor((absTime % 3600) / 60);
+        const seconds = absTime % 60;
+        return `Completed in ${hours}h ${minutes}m ${seconds}s`;
+      }
+      return 'Completed';
+    }
     
+    if (timeRemaining === null || timeRemaining === undefined) return 'N/A';
+    
+    const absTime = Math.abs(timeRemaining);
+    const hours = Math.floor(absTime / 3600);
+    const minutes = Math.floor((absTime % 3600) / 60);
+    const seconds = absTime % 60;
+    
+    if (timeRemaining < 0) {
+      return `Overdue by ${hours}h ${minutes}m ${seconds}s`;
+    } else {
+      return `${hours}h ${minutes}m ${seconds}s remaining`;
+    }
+  };
+  
   const getLiveTimeRemaining = (patientId, fallbackTime) => {
     return liveTimeRemaining[patientId] !== undefined 
       ? liveTimeRemaining[patientId] 
       : fallbackTime;
   };
 
-   const renderGridView = () => (
+  const getTimeRemainingColor = (timeRemaining, tatBreached, isDone) => {
+    if (isDone) return darkMode ? 'text-emerald-300' : 'text-emerald-700';
+    if (tatBreached || timeRemaining < 0) return darkMode ? 'text-red-300' : 'text-red-700';
+    if (timeRemaining < 3600) return darkMode ? 'text-amber-300' : 'text-amber-700';
+    return darkMode ? 'text-emerald-300' : 'text-emerald-700';
+  };
+
+  const renderGridView = () => (
     <div className="p-6">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredPatients.map((patient) => (
@@ -384,7 +321,6 @@ useEffect(() => {
                   ? 'border-l-4 border-emerald-400 bg-emerald-50 dark:bg-emerald-900/20' 
                   : ''
             }`}
-            // onClick={() => setSelectedReport(patient)}
           >
             {/* Card Header */}
             <div className={`p-4 border-b ${darkMode ? 'border-gray-700' : 'border-gray-100'}`}>
@@ -412,47 +348,37 @@ useEffect(() => {
               </h3>
               <p className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>ID: {patient.patient_id}</p>
               
-              {/* Flags */}
               <div className="flex flex-wrap gap-1 mt-2">
-
-  {/* 🚨 URGENT */}
-  {patient.urgent && (
-    <span className="inline-flex items-center px-2 py-1 text-xs font-bold bg-red-100 dark:bg-red-800 text-red-800 dark:text-red-200 rounded-full">
-      🚨 URGENT
-    </span>
-  )}
-
-  {/* 👑 VIP */}
-  {patient.vip && (
-    <span className="inline-flex items-center px-2 py-1 text-xs font-bold bg-purple-100 dark:bg-purple-800 text-purple-800 dark:text-purple-200 rounded-full">
-      👑 VIP
-    </span>
-  )}
-
-  {/* ⚠️ OVERDUE */}
-  {patient.tat_breached && !patient.is_done && (
-    <span className="inline-flex items-center px-2 py-1 text-xs font-bold bg-red-200 dark:bg-red-700 text-red-900 dark:text-red-100 rounded-full animate-pulse">
-      ⚠️ OVERDUE
-    </span>
-  )}
-
-  {/* 🩺 RADIOLOGIST */}
-  {patient.radiologist && patient.radiologist.length > 0 ? (
-    <span className="inline-flex items-center px-2 py-1 text-xs font-semibold bg-emerald-100 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-200 rounded-full">
-      🩺 {patient.radiologist.map((r, i) => (
-        <span key={i}>
-          Dr. {r}
-          {i !== patient.radiologist.length - 1 && ', '}
-        </span>
-      ))}
-    </span>
-  ) : (
-    <span className="inline-flex items-center px-2 py-1 text-xs font-semibold bg-amber-100 dark:bg-amber-900 text-amber-800 dark:text-amber-200 rounded-full">
-      ⚕️ Unassigned
-    </span>
-  )}
-</div>
-
+                {patient.urgent && (
+                  <span className="inline-flex items-center px-2 py-1 text-xs font-bold bg-red-100 dark:bg-red-800 text-red-800 dark:text-red-200 rounded-full">
+                    🚨 URGENT
+                  </span>
+                )}
+                {patient.vip && (
+                  <span className="inline-flex items-center px-2 py-1 text-xs font-bold bg-purple-100 dark:bg-purple-800 text-purple-800 dark:text-purple-200 rounded-full">
+                    👑 VIP
+                  </span>
+                )}
+                {patient.tat_breached && !patient.is_done && (
+                  <span className="inline-flex items-center px-2 py-1 text-xs font-bold bg-red-200 dark:bg-red-700 text-red-900 dark:text-red-100 rounded-full animate-pulse">
+                    ⚠️ OVERDUE
+                  </span>
+                )}
+                {patient.radiologist && patient.radiologist.length > 0 ? (
+                  <span className="inline-flex items-center px-2 py-1 text-xs font-semibold bg-emerald-100 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-200 rounded-full">
+                    🩺 {patient.radiologist.map((r, i) => (
+                      <span key={i}>
+                        Dr. {r}
+                        {i !== patient.radiologist.length - 1 && ', '}
+                      </span>
+                    ))}
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center px-2 py-1 text-xs font-semibold bg-amber-100 dark:bg-amber-900 text-amber-800 dark:text-amber-200 rounded-full">
+                    ⚕️ Unassigned
+                  </span>
+                )}
+              </div>
             </div>
 
             {/* Card Body */}
@@ -476,34 +402,30 @@ useEffect(() => {
                     {patient.modality}
                   </span>
                 </div>
-               <div className="text-sm">
-                <span className={`font-medium ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Institution:</span>
-                <span className={`ml-1 ${darkMode ? 'text-white' : 'text-gray-900'}`}>{patient.institution_name}</span>
+                <div className="text-sm">
+                  <span className={`font-medium ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Institution:</span>
+                  <span className={`ml-1 ${darkMode ? 'text-white' : 'text-gray-900'}`}>{patient.institution_name}</span>
+                </div>
+                <div className="text-sm">
+                  <span className={`font-medium ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Body Part:</span>
+                  <span className={`ml-1 ${darkMode ? 'text-white' : 'text-gray-900'}`}>{patient.body_part_examined}</span>
+                </div>
+                <div className="text-sm">
+                  <span className={`font-medium ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Study:</span>
+                  <p className={`truncate ${darkMode ? 'text-white' : 'text-gray-900'}`} title={patient.study_description}>
+                    {patient.study_description}
+                  </p>
+                </div>
+                <div className="text-sm">
+                  <span className={`font-medium ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>TAT Status:</span>
+                  <span className={`text-xs font-bold ${
+                    getTimeRemainingColor(getLiveTimeRemaining(patient.id, patient.time_remaining), patient.tat_breached, patient.is_done)
+                  }`}>
+                    {formatTimeRemaining(getLiveTimeRemaining(patient.id, patient.time_remaining), patient.is_done, patient.overdue_seconds)}
+                  </span>
+                </div>
               </div>
 
-              <div className="text-sm">
-                <span className={`font-medium ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Body Part:</span>
-                <span className={`ml-1 ${darkMode ? 'text-white' : 'text-gray-900'}`}>{patient.body_part_examined}</span>
-              </div>
-
-              <div className="text-sm">
-                <span className={`font-medium ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Study:</span>
-                <p className={`truncate ${darkMode ? 'text-white' : 'text-gray-900'}`} title={patient.study_description}>
-                  {patient.study_description}
-                </p>
-              </div>
-              {/* TAT Status */}
-              <div className="text-sm">
-                <span className={`font-medium ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>TAT Status:</span>
-                <span className={`text-xs font-bold ${
-                  getTimeRemainingColor(getLiveTimeRemaining(patient.id, patient.time_remaining), patient.tat_breached, patient.is_done)
-                }`}>
-                  {formatTimeRemaining(getLiveTimeRemaining(patient.id, patient.time_remaining), patient.is_done, patient.overdue_seconds)}
-                </span>
-              </div>
-              </div>
-
-              {/* Clinical History Preview */}
               {patient.notes && (
                 <div className="text-sm">
                   <span className={`font-medium ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Clinical History:</span>
@@ -513,30 +435,29 @@ useEffect(() => {
                 </div>
               )}
 
-              {/* History Files */}
               {patient.history_files && patient.history_files.length > 0 && (
-               <div className="flex flex-wrap gap-1">
-                 {patient.history_files.map((file, index) => {
-                   let fileUrl = file;
-                   if (fileUrl.includes("/https/")) {
-                     fileUrl = fileUrl.split("/https/")[1];
-                     fileUrl = "https://" + fileUrl;
-                   }
-                   return (
-                     <a
-                       key={index}
-                       href={fileUrl}
-                       target="_blank"
-                       rel="noopener noreferrer"
-                       onClick={(e) => e.stopPropagation()}
-                       className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-indigo-100 dark:bg-indigo-800 text-indigo-800 dark:text-indigo-200 hover:bg-indigo-200 dark:hover:bg-indigo-700 transition-all duration-200"
-                     >
-                       H{index + 1}
-                     </a>
-                   );
-                 })}
-               </div>
-             )}
+                <div className="flex flex-wrap gap-1">
+                  {patient.history_files.map((file, index) => {
+                    let fileUrl = file;
+                    if (fileUrl.includes("/https/")) {
+                      fileUrl = fileUrl.split("/https/")[1];
+                      fileUrl = "https://" + fileUrl;
+                    }
+                    return (
+                      <a
+                        key={index}
+                        href={fileUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-indigo-100 dark:bg-indigo-800 text-indigo-800 dark:text-indigo-200 hover:bg-indigo-200 dark:hover:bg-indigo-700 transition-all duration-200"
+                      >
+                        H{index + 1}
+                      </a>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
             {/* Card Footer */}
@@ -574,7 +495,6 @@ useEffect(() => {
         ))}
       </div>
 
-      {/* Empty State for Grid */}
       {filteredPatients.length === 0 && (
         <div className="text-center py-16">
           <div className={`w-24 h-24 mx-auto mb-4 rounded-full flex items-center justify-center ${
@@ -588,15 +508,21 @@ useEffect(() => {
       )}
     </div>
   );
-   
-  const getTimeRemainingColor = (timeRemaining, tatBreached, isDone) => {
-    if (isDone) return darkMode ? 'text-emerald-300' : 'text-emerald-700';
-    if (tatBreached || timeRemaining < 0) return darkMode ? 'text-red-300' : 'text-red-700';
-    if (timeRemaining < 3600) return darkMode ? 'text-amber-300' : 'text-amber-700';
-    return darkMode ? 'text-emerald-300' : 'text-emerald-700';
-  };
 
-  const currentCoordinator = coordinators[0]; // Assuming first coordinator is current user
+  const currentCoordinator = coordinators[0];
+
+  if (loading) {
+    return (
+      <div className={`flex justify-center items-center min-h-screen transition-colors duration-200 ${
+        darkMode ? 'bg-gray-900' : 'bg-gradient-to-br from-blue-50 to-indigo-100'
+      }`}>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-4 border-blue-500 border-t-transparent mx-auto mb-4"></div>
+          <p className={`text-lg font-medium ${darkMode ? 'text-white' : 'text-gray-600'}`}>Loading Dashboard...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={`min-h-screen transition-colors duration-200 ${
@@ -604,209 +530,19 @@ useEffect(() => {
         ? 'bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900' 
         : 'bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50'
     }`}>
-      {/* Enhanced Header */}
-      <div className={`bg-gradient-to-r shadow-xl border-b ${
-        darkMode 
-          ? 'from-gray-800 to-gray-900 border-gray-700' 
-          : 'from-gray-50 to-indigo-900 border-gray-200'
-      }`}>
-        <div className="w-full px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-4">
-            <div className="flex items-center space-x-4">
-              <div className="w-10 h-10 bg-gradient-to-r from-blue-400 to-indigo-500 rounded-full flex items-center justify-center">
-                <span className="text-white text-xl font-bold">📊</span>
-              </div>
-              <h1 className={`text-3xl font-extrabold tracking-tight ${
-                darkMode ? 'text-white' : 'text-gray-900'
-              }`}>
-                <span className={darkMode ? 'text-white' : 'text-gray-900'}>
-                <img
-                  src="https://u4rad.com/static/media/Logo.c9920d154c922ea9e355.png"
-                  alt="U4rad"
-                  style={{
-                    height: 50,
-                    backgroundColor: darkMode ? 'white' : 'transparent',
-                    borderRadius: 6, // optional
-                    padding: 2        // optional (to give space around logo)
-                  }}
-                />
-              </span>
+     
+      <CoordinatorHeader
+        darkMode={darkMode}
+        setDarkMode={setDarkMode}
+        currentCoordinator={currentCoordinator}
+        firstName={firstName}
+        lastName={lastName}
+        stats={stats}
+        headerRef={headerRef}
+      />
 
-            
-              </h1>
-            </div>
-
-            {/* Enhanced Profile Section with Dark Mode Toggle and Logout */}
-            <div className="relative flex items-center space-x-3">
-              <h2
-               style={{
-                 fontSize: 18,
-                 margin: 0,
-                 fontWeight: 600,
-                 color: darkMode ? '#F9FAFB' : '#0B0B0B',
-                 display: window.innerWidth <= 600 ? 'none' : 'block',
-               }}
-             >
-               {getGreeting()}, Dr. {firstName} {lastName}
-             </h2>
-
-
-              {/* Dark Mode Toggle */}
-              <button
-                onClick={() => setDarkMode(!darkMode)}
-                className={`p-2 rounded-lg transition-all duration-200 ${
-                  darkMode 
-                    ? 'bg-yellow-100 text-yellow-600 hover:bg-yellow-200' 
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                }`}
-                title={darkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-              >
-                {darkMode ? '☀️' : '🌙'}
-              </button>
-
-              {/* Profile Dropdown */}
-              <div className="relative">
-                <button
-                  onClick={() => setShowProfile(!showProfile)}
-                  className="flex items-center space-x-2 p-2 rounded-lg hover:bg-white/10 transition-all duration-200 backdrop-blur-sm border border-white/10"
-                >
-                  <div className="w-8 h-8 bg-gradient-to-r from-blue-400 to-indigo-500 rounded-full flex items-center justify-center overflow-hidden shadow-md">
-                    {currentCoordinator?.profile_pic ? (
-                      <img 
-                        src={currentCoordinator.profile_pic} 
-                        alt="Profile" 
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <span className="text-white text-xs font-bold">
-                        {currentCoordinator?.first_name?.charAt(0)}
-                        {currentCoordinator?.last_name?.charAt(0)}
-                      </span>
-                    )}
-                  </div>
-                  <div className="text-left hidden sm:block">
-                    <p className="text-sm font-semibold text-white">
-                      {currentCoordinator?.first_name} {currentCoordinator?.last_name}
-                    </p>
-                    <p className="text-xs text-blue-200">{currentCoordinator?.email}</p>
-                  </div>
-                  <svg className="w-3 h-3 text-white/70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  </svg>
-                </button>
-              
-                {/* Enhanced Profile Dropdown */}
-                {showProfile && (
-                  <div className={`absolute right-0 mt-2 w-80 rounded-xl shadow-xl border z-50 ${
-                    darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'
-                  }`}>
-                    <div className="p-4">
-                      {/* Profile Info */}
-                      <div className="flex items-center space-x-3 mb-4">
-                        <div className="w-12 h-12 bg-gradient-to-r from-blue-400 to-indigo-500 rounded-xl flex items-center justify-center overflow-hidden shadow-md">
-                          {currentCoordinator?.profile_pic ? (
-                            <img 
-                              src={currentCoordinator.profile_pic} 
-                              alt="Profile" 
-                              className="w-full h-full object-cover"
-                            />
-                          ) : (
-                            <span className="text-white text-sm font-bold">
-                              {currentCoordinator?.first_name?.charAt(0)}
-                              {currentCoordinator?.last_name?.charAt(0)}
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex-1">
-                          <h3 className={`text-lg font-bold ${
-                            darkMode ? 'text-white' : 'text-gray-900'
-                          }`}>
-                            {currentCoordinator?.first_name} {currentCoordinator?.last_name}
-                          </h3>
-                          <p className={`text-sm ${
-                            darkMode ? 'text-gray-300' : 'text-gray-600'
-                          }`}>{currentCoordinator?.email}</p>
-                          <div className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium mt-1 ${
-                            darkMode 
-                              ? 'bg-blue-800 text-blue-200' 
-                              : 'bg-blue-100 text-blue-800'
-                          }`}>
-                            Coordinator
-                          </div>
-                        </div>
-                      </div>
-                      
-                      {/* Stats */}
-                      <div className="grid grid-cols-2 gap-3 mb-4">
-                        <div className={`p-3 rounded-lg border ${
-                          darkMode 
-                            ? 'bg-emerald-900/20 border-emerald-800' 
-                            : 'bg-emerald-50 border-emerald-100'
-                        }`}>
-                          <div className="text-center">
-                            <span className={`text-xs font-medium ${
-                              darkMode ? 'text-emerald-400' : 'text-emerald-600'
-                            }`}>TAT Completed</span>
-                            <p className={`text-xl font-bold ${
-                              darkMode ? 'text-emerald-300' : 'text-emerald-700'
-                            }`}>{currentCoordinator?.tat_completed || 0}</p>
-                          </div>
-                        </div>
-                        <div className={`p-3 rounded-lg border ${
-                          darkMode 
-                            ? 'bg-red-900/20 border-red-800' 
-                            : 'bg-red-50 border-red-100'
-                        }`}>
-                          <div className="text-center">
-                            <span className={`text-xs font-medium ${
-                              darkMode ? 'text-red-400' : 'text-red-600'
-                            }`}>TAT Breached</span>
-                            <p className={`text-xl font-bold ${
-                              darkMode ? 'text-red-300' : 'text-red-700'
-                            }`}>{currentCoordinator?.tat_breached || 0}</p>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Action Buttons */}
-                      <div className="space-y-2">
-                        <button
-                          onClick={() => setDarkMode(!darkMode)}
-                          className={`w-full flex items-center justify-between p-3 rounded-lg transition-colors duration-200 ${
-                            darkMode 
-                              ? 'bg-gray-700 hover:bg-gray-600 text-gray-200' 
-                              : 'bg-gray-50 hover:bg-gray-100 text-gray-700'
-                          }`}
-                        >
-                          <span className="font-medium">
-                            {darkMode ? 'Light Mode' : 'Dark Mode'}
-                          </span>
-                          <span className="text-lg">{darkMode ? '☀️' : '🌙'}</span>
-                        </button>
-                        
-                        <button
-                          onClick={() => setShowLogoutConfirm(true)}
-                          className={`w-full flex items-center justify-between p-3 rounded-lg transition-colors duration-200 font-medium ${
-                            darkMode 
-                              ? 'bg-red-900/20 hover:bg-red-900/30 text-red-300' 
-                              : 'bg-red-50 hover:bg-red-100 text-red-700'
-                          }`}
-                        >
-                          <span>Logout</span>
-                          <span>🚪</span>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Enhanced Statistics Cards */}
-      <div className="w-full px-4 sm:px-6 lg:px-8 py-4">
+      <div className="w-full px-2 sm:px-3 lg:px-4 py-2">
+        {/* Statistics Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6 w-full">
           <div className={`p-4 rounded-xl shadow-md border transition-all duration-300 ${
             darkMode 
@@ -815,10 +551,10 @@ useEffect(() => {
           }`}>
             <div className="flex items-center justify-between">
               <div>
-                <h3 className={`text-xs font-semibold uppercase tracking-wide ${
+                <h3 className={`text-xxs font-semibold uppercase tracking-wide ${
                   darkMode ? 'text-gray-400' : 'text-gray-500'
                 }`}>Total Cases</h3>
-                <p className={`text-2xl font-bold mt-1 ${
+                <p className={`text-xl font-bold mt-1 ${
                   darkMode ? 'text-white' : 'text-gray-900'
                 }`}>{stats.totalCases}</p>
               </div>
@@ -842,10 +578,10 @@ useEffect(() => {
           }`}>
             <div className="flex items-center justify-between">
               <div>
-                <h3 className={`text-xs font-semibold uppercase tracking-wide ${
+                <h3 className={`text-xxs font-semibold uppercase tracking-wide ${
                   darkMode ? 'text-gray-400' : 'text-gray-500'
                 }`}>Pending Cases</h3>
-                <p className={`text-2xl font-bold mt-1 ${
+                <p className={`text-xl font-bold mt-1 ${
                   darkMode ? 'text-amber-400' : 'text-amber-600'
                 }`}>{stats.pendingCases}</p>
               </div>
@@ -862,10 +598,10 @@ useEffect(() => {
           }`}>
             <div className="flex items-center justify-between">
               <div>
-                <h3 className={`text-xs font-semibold uppercase tracking-wide ${
+                <h3 className={`text-xxs font-semibold uppercase tracking-wide ${
                   darkMode ? 'text-gray-400' : 'text-gray-500'
                 }`}>Reported Cases</h3>
-                <p className={`text-2xl font-bold mt-1 ${
+                <p className={`text-xl font-bold mt-1 ${
                   darkMode ? 'text-emerald-400' : 'text-emerald-600'
                 }`}>{stats.reportedCases}</p>
               </div>
@@ -882,10 +618,10 @@ useEffect(() => {
           }`}>
             <div className="flex items-center justify-between">
               <div>
-                <h3 className={`text-xs font-semibold uppercase tracking-wide ${
+                <h3 className={`text-xxs font-semibold uppercase tracking-wide ${
                   darkMode ? 'text-gray-400' : 'text-gray-500'
                 }`}>Overdue Cases</h3>
-                <p className={`text-2xl font-bold mt-1 ${
+                <p className={`text-xl font-bold mt-1 ${
                   darkMode ? 'text-red-400' : 'text-red-600'
                 }`}>{stats.overdueCases}</p>
               </div>
@@ -901,9 +637,9 @@ useEffect(() => {
           </div>
         </div>
 
-        {/* Show assign/replace section only when patients are selected */}
+        {/* Assign/Replace Section */}
         {selectedPatients.length > 0 && (
-          <div className={`p-4 rounded-2xl shadow-lg border mb-8 ${
+          <div className={`flex p-4 rounded-2xl shadow-lg border mb-8 ${
             darkMode 
               ? 'bg-gray-800 border-gray-700' 
               : 'bg-white border-gray-100'
@@ -959,7 +695,7 @@ useEffect(() => {
                     ? 'bg-gray-300 text-gray-500'
                     : assignMode === 'assign'
                       ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700 shadow-blue-200'
-                                            : 'bg-gradient-to-r from-orange-500 to-orange-600 text-white hover:from-orange-600 hover:to-orange-700 shadow-orange-200'
+                      : 'bg-gradient-to-r from-orange-500 to-orange-600 text-white hover:from-orange-600 hover:to-orange-700 shadow-orange-200'
                 }`}
               >
                 {assignMode === 'assign' ? 'Assign' : 'Replace'} for Selected (
@@ -969,529 +705,48 @@ useEffect(() => {
           </div>
         )}
 
-        {/* Enhanced Filters */}
-        <div className={`p-2 rounded-xl shadow-lg border mb-6 ${
-          darkMode 
-            ? 'bg-gray-800 border-gray-700' 
-            : 'bg-white border-gray-100'
-        }`}>
-          {/* Search Input */}
-          <div className="mb-2">
-            <div className="relative">
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Search by patient name, ID, or institution..."
-                className={`w-full px-4 py-3 pl-12 border rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent shadow-sm ${
-                  darkMode 
-                    ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
-                    : 'bg-white border-gray-300'
-                }`}
-              />
-              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-              </div>
-              {searchTerm && (
-                <button
-                  onClick={() => setSearchTerm('')}
-                  className="absolute inset-y-0 right-0 pr-4 flex items-center"
-                >
-                  <svg className="h-5 w-5 text-gray-400 hover:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              )}
-            </div>
-          </div>
-        
-          {/* Existing Filter Dropdowns */}
-          <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
-            {[
-              { key: 'bodyPart', label: 'Body Parts', options: bodyParts.map(part => ({ value: part.name, label: part.name })) },
-              { key: 'allocated', label: 'Allocation Status', options: [{ value: 'Assigned', label: 'Assigned' }, { value: 'Unassigned', label: 'Unassigned' }] },
-              { key: 'status', label: 'Status', options: [{ value: 'Pending', label: 'Pending' }, { value: 'Completed', label: 'Completed' }] },
-              { key: 'modality', label: 'Modalities', options: getUniqueOptions('modality').map(opt => ({ value: opt, label: opt })) }
-            ].map(filter => (
-              <select
-                key={filter.key}
-                value={filters[filter.key]}
-                onChange={(e) => handleFilterChange(filter.key, e.target.value)}
-                className={`px-2 py-1 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent shadow-sm text-sm ${
-                  darkMode 
-                    ? 'bg-gray-700 border-gray-600 text-white' 
-                    : 'bg-white border-gray-300'
-                }`}
-              >
-                <option value="">All {filter.label}</option>
-                {filter.options.map(option => (
-                  <option key={option.value} value={option.value}>{option.label}</option>
-                ))}
-              </select>
-            ))}
-        
-            <button
-              onClick={() => {
-                setFilters({bodyPart: '', allocated: '', clinicalHistory: '', status: '', modality: '',institution: '', studyDate: ''});
-                setSearchTerm(''); // Clear search as well
-              }}
-              className="px-4 py-2 bg-gradient-to-r from-gray-600 to-gray-700 text-white rounded-lg font-medium transition-all duration-200 hover:from-gray-700 hover:to-gray-800 transform hover:scale-105 shadow-lg text-sm"
-            >
-              Clear All
-            </button>
-
-            <div className="flex items-center gap-3">
-             {/* View Toggle */}
-             <div className={`flex rounded-lg p-1 ${
-               darkMode ? 'bg-gray-600' : 'bg-gray-100'
-             }`}>
-               <button
-                 onClick={() => setViewMode('table')}
-                 className={`px-4 py-2 rounded-md font-medium transition-all duration-200 ${
-                   viewMode === 'table'
-                     ? 'bg-blue-500 text-white shadow-md'
-                     : darkMode ? 'text-gray-300 hover:text-white' : 'text-gray-600 hover:text-gray-900'
-                 }`}
-               >
-                 📊 Table
-               </button>
-               <button
-                 onClick={() => setViewMode('grid')}
-                 className={`px-4 py-2 rounded-md font-medium transition-all duration-200 ${
-                   viewMode === 'grid'
-                     ? 'bg-blue-500 text-white shadow-md'
-                     : darkMode ? 'text-gray-300 hover:text-white' : 'text-gray-600 hover:text-gray-900'
-                 }`}
-               >
-                 🔳 Grid
-               </button>
-             </div>
-           
-             {/* Study Date Filter */}
-             <div className="relative">
-               <button
-                 onClick={() => setShowDatePicker(!showDatePicker)}
-                 className={`flex items-center space-x-2 px-4 py-2 rounded-lg font-medium transition-all duration-200 ${
-                   filters.studyDate
-                     ? 'bg-blue-500 text-white shadow-md'
-                     : darkMode 
-                       ? 'bg-gray-600 text-gray-300 hover:bg-gray-500' 
-                       : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                 }`}
-               >
-                 <span>📅</span>
-                 <span className="text-sm">
-                   {filters.studyDate ? filters.studyDate : ""}
-                 </span>
-               </button>
-               
-               {showDatePicker && (
-                 <div className={`absolute top-full right-0 mt-2 z-50 p-3 rounded-lg shadow-xl border ${
-                   darkMode ? 'bg-gray-700 border-gray-600' : 'bg-white border-gray-200'
-                 }`} style={{ minWidth: '200px' }}>
-                   <input
-                     type="date"
-                     value={filters.studyDate}
-                     onChange={(e) => {
-                       handleFilterChange('studyDate', e.target.value);
-                       setShowDatePicker(false);
-                     }}
-                     className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                       darkMode 
-                         ? 'bg-gray-600 border-gray-500 text-white' 
-                         : 'border-gray-300'
-                     }`}
-                   />
-                   {filters.studyDate && (
-                     <button
-                       onClick={() => {
-                         handleFilterChange('studyDate', '');
-                         setShowDatePicker(false);
-                       }}
-                       className="mt-2 w-full px-3 py-1 text-xs bg-red-500 text-white rounded hover:bg-red-600 transition-colors"
-                     >
-                       Clear Date
-                     </button>
-                   )}
-                 </div>
-               )}
-             </div>
-           </div>
-          </div>
-        </div>
-
-        {/* Enhanced Patient Table */}
-        <div className={`rounded-2xl shadow-lg border overflow-hidden ${
-          darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'
-        }`}>
-          <div className="overflow-x-auto">
-            {viewMode === 'table' ? (
-             <table className="min-w-full divide-y divide-gray-200">
-  <thead className={`bg-gradient-to-r ${
-    darkMode ? 'from-gray-700 to-gray-800' : 'from-gray-50 to-slate-100'
-  }`}>
-    <tr>
-      <th className="px-4 py-4 text-left text-xs font-bold uppercase tracking-wider" >
-        <input
-          type="checkbox"
-          onChange={(e) => {
-            if (e.target.checked) {
-              setSelectedPatients(filteredPatients.map(p => p.id));
-            } else {
-              setSelectedPatients([]);
-            }
-          }}
-          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 w-4 h-4"
+        {/* Filters */}
+        <CoordinatorFilters
+          darkMode={darkMode}
+          filters={filters}
+          handleFilterChange={handleFilterChange}
+          searchTerm={searchTerm}
+          setSearchTerm={setSearchTerm}
+          bodyParts={bodyParts}
+          getUniqueOptions={getUniqueOptions}
+          viewMode={viewMode}
+          setViewMode={setViewMode}
+          showInstitutionDropdown={showInstitutionDropdown}
+          setShowInstitutionDropdown={setShowInstitutionDropdown}
+          patients={patients}
+          filterRef={filterRef}
         />
-     </th>
-{[
-  'Patient ID', 'Patient Name', 'Age', 'Gender', 'Study Date', 'Study Time','Allocated ',
-  'Institution', 'Modality', 'Study Description', 'Body Part', 'Status',
-  'TAT Status', 'Flags', 'Clinical History', 'Actions'
-].map(header => (
-  <th key={header} className={`px-4 py-4 text-left text-xs font-bold uppercase tracking-wider ${
-    darkMode ? 'text-gray-300' : 'text-gray-700'
-  } ${header === 'Institution' ? 'relative' : ''}`}>
-    {header === 'Institution' ? (
-      <>
-        <button
-          onClick={() => setShowInstitutionDropdown(!showInstitutionDropdown)}
-          className={`flex items-center space-x-2 hover:text-blue-500 transition-colors ${
-            filters.institution ? 'text-blue-500' : ''
-          }`}
-        >
-          <span>{header}</span>
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-          </svg>
-          {filters.institution && (
-            <span className="ml-1 px-2 py-1 bg-blue-500 text-white rounded-full text-xs">
-              ✓
-            </span>
-          )}
-        </button>
-        
-        {/* Dropdown */}
-        {showInstitutionDropdown && (
-          <div className={`absolute top-full left-0 mt-2 w-64 max-h-96 overflow-y-auto rounded-lg shadow-xl border z-50 ${
-            darkMode ? 'bg-gray-700 border-gray-600' : 'bg-white border-gray-200'
-          }`}>
-            <div className="p-2">
-              {/* Clear filter option */}
-              <button
-                onClick={() => {
-                  handleFilterChange('institution', '');
-                  setShowInstitutionDropdown(false);
-                }}
-                className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  !filters.institution
-                    ? 'bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200'
-                    : 'hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300'
-                }`}
-              >
-                All Institutions
-              </button>
-              
-              {/* Institution list */}
-              {[...new Set(patients.map(p => p.institution_name))]
-                .filter(name => name) // Remove empty values
-                .sort((a, b) => a.localeCompare(b)) // Alphabetical sort
-                .map((institution, index) => {
-                  const count = patients.filter(p => p.institution_name === institution).length;
-                  return (
-                    <button
-                      key={index}
-                      onClick={() => {
-                        handleFilterChange('institution', institution);
-                        setShowInstitutionDropdown(false);
-                      }}
-                      className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors flex items-center justify-between ${
-                        filters.institution === institution
-                          ? 'bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 font-semibold'
-                          : 'hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300'
-                      }`}
-                    >
-                      <span className="truncate">{institution}</span>
-                      <span className={`ml-2 px-2 py-1 rounded-full text-xs ${
-                        filters.institution === institution
-                          ? 'bg-blue-200 dark:bg-blue-800'
-                          : 'bg-gray-200 dark:bg-gray-700'
-                      }`}>
-                        {count}
-                      </span>
-                    </button>
-                  );
-                })}
-            </div>
-          </div>
-        )}
-      </>
-    ) : (
-      header
-    )}
-  </th>
-))}
-     
-    </tr>
-  </thead>
-  <tbody className={`divide-y ${
-    darkMode ? 'divide-gray-700 bg-gray-800' : 'divide-gray-100 bg-white'
-  }`}>
-    {filteredPatients.map((patient, index) => (
-      <tr key={patient.id} className={`transition-all duration-200 ${
-        patient.tat_breached && !patient.is_done 
-          ? 'bg-red-50 dark:bg-red-900/20 border-l-4 border-red-400 hover:bg-red-100 dark:hover:bg-red-900/30' 
-          : patient.is_done 
-            ? 'bg-emerald-50 dark:bg-emerald-900/20 border-l-4 border-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/30' 
-            : index % 2 === 0 
-              ? (darkMode ? 'bg-gray-800 hover:bg-gray-750' : 'bg-gray-25 hover:bg-slate-50')
-              : (darkMode ? 'bg-gray-800 hover:bg-gray-750' : 'hover:bg-slate-50')
-      }`}>
-        <td className="px-4 py-4 whitespace-nowrap">
-          <input
-            type="checkbox"
-            checked={selectedPatients.includes(patient.id)}
-            onChange={() => handlePatientSelect(patient.id)}
-            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 w-4 h-4"
-          />
-        </td>
-        <td className={`px-4 py-4 whitespace-nowrap text-sm font-semibold ${
-          darkMode ? 'text-white' : 'text-gray-900'
-        }`}>{patient.patient_id}</td>
-        <td className="px-4 py-4 whitespace-nowrap text-sm">
-          <div className="flex items-center space-x-2">
-            <span className={`font-medium ${
-  patient.is_done 
-    ? 'text-emerald-700' // Changed from 'text-gray-900 dark:text-emerald-300'
-    : patient.tat_breached 
-      ? 'text-red-700' // Changed from 'text-gray-900 dark:text-red-300'
-      : darkMode ? 'text-white' : 'text-gray-900'
-}`}>
-              {patient.patient_name}
-            </span>
-            {patient.is_done && (
-              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-emerald-100 dark:bg-emerald-800 text-emerald-800 dark:text-emerald-200">
-                ✅ Done
-              </span>
-            )}
-            {patient.tat_breached && !patient.is_done && (
-              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 dark:bg-red-800 text-red-800 dark:text-red-200 animate-pulse">
-                🚨 Overdue
-              </span>
-            )}
-          </div>
-        </td>
-        <td className={`px-4 py-4 whitespace-nowrap text-sm font-medium ${
-          darkMode ? 'text-white' : 'text-gray-900'
-        }`}>{patient.age}</td>
-        <td className={`px-4 py-4 whitespace-nowrap text-sm ${
-          darkMode ? 'text-white' : 'text-gray-900'
-        }`}>{patient.gender}</td>
-        <td className={`px-4 py-4 whitespace-nowrap text-sm ${
-          darkMode ? 'text-white' : 'text-gray-900'
-        }`}>{patient.study_date}</td>
-        <td className={`px-4 py-4 whitespace-nowrap text-sm ${
-          darkMode ? 'text-white' : 'text-gray-900'
-        }`}>{patient.study_time}</td>
-       <td
-  className={`px-4 py-4 whitespace-nowrap text-sm font-medium ${
-    patient.radiologist && patient.radiologist.length > 0
-      ? darkMode
-        ? 'text-emerald-300'
-        : 'text-emerald-700'
-      : darkMode
-      ? 'text-amber-300'
-      : 'text-amber-700'
-  }`}
->
-  {patient.radiologist && patient.radiologist.length > 0
-    ? patient.radiologist.map((r, i) => (
-        <span key={i}>
-          Dr. {r}
-          {i !== patient.radiologist.length - 1 && ', '}
-        </span>
-      ))
-    : 'Unassigned'}
-</td>
 
-
-        
-        <td className={`px-4 py-4 whitespace-nowrap text-sm font-medium ${
-          darkMode ? 'text-white' : 'text-gray-900'
-        }`}>{patient.institution_name}</td>
-        <td className="px-4 py-4 whitespace-nowrap text-sm">
-          <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
-            darkMode 
-              ? 'bg-blue-900/30 border border-blue-700 text-blue-300' 
-              : 'bg-gradient-to-r from-blue-100 to-indigo-100 border border-blue-200 text-blue-800'
-          }`}>
-            {patient.modality}
-          </span>
-        </td>
-        <td className={`px-4 py-4 text-sm max-w-xs ${
-          darkMode ? 'text-white' : 'text-gray-900'
-        }`}>
-          <div className="truncate font-medium" title={patient.study_description}>
-            {patient.study_description}
-          </div>
-        </td>
-        <td className={`px-4 py-4 whitespace-nowrap text-sm font-medium ${
-          darkMode ? 'text-white' : 'text-gray-900'
-        }`}>{patient.body_part_examined}</td>
-        <td className="px-4 py-4 whitespace-nowrap">
-          <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold shadow-sm border ${
-            patient.is_done 
-              ? 'bg-gradient-to-r from-emerald-100 to-green-100 dark:from-emerald-900/30 dark:to-green-900/30 text-emerald-800 dark:text-emerald-200 border-emerald-200 dark:border-emerald-700' 
-              : 'bg-gradient-to-r from-amber-100 to-yellow-100 dark:from-amber-900/30 dark:to-yellow-900/30 text-amber-800 dark:text-amber-200 border-amber-200 dark:border-amber-700'
-          }`}>
-            {patient.is_done ? '✅ Completed' : '⏳ Pending'}
-          </span>
-        </td>
-        <td className="px-4 py-4 whitespace-nowrap text-sm">
-           <div className="flex flex-col space-y-1">
-             <span className={`ml-1 font-bold ${getTimeRemainingColor(getLiveTimeRemaining(patient.id, patient.time_remaining), patient.tat_breached, patient.is_done)}`}>
-  {formatTimeRemaining(getLiveTimeRemaining(patient.id, patient.time_remaining), patient.is_done, patient.overdue_seconds)}
-</span>
-              {patient.tat_breached && !patient.is_done && (
-                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-bold bg-gradient-to-r from-red-100 to-red-200 text-red-800 border border-red-300 animate-pulse dark:from-red-900/30 dark:to-red-800/30 dark:text-red-200 dark:border-red-600">
-                 🚨 TAT BREACHED
-               </span>
-              )}
-              {patient.is_done && (
-               <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-bold bg-gradient-to-r from-emerald-100 to-green-200 text-emerald-800 border border-emerald-300 dark:from-emerald-900/30 dark:to-green-800/30 dark:text-emerald-200 dark:border-emerald-600">
-               ✅ COMPLETED
-             </span>
-              )}
-           </div>
-         </td>
-        <td className="px-4 py-4 whitespace-nowrap text-sm">
-           <div className="flex flex-wrap gap-1">
-             {patient.urgent && (
-              <span className="inline-flex items-center px-2 py-1 text-xs font-bold bg-gradient-to-r from-red-100 to-red-200 text-red-800 rounded-full border border-red-300 shadow-sm dark:from-red-900/30 dark:to-red-800/30 dark:text-red-200 dark:border-red-600">
-               🚨 URGENT
-             </span>
-             )}
-             {patient.vip && (
-                <span className="inline-flex items-center px-2 py-1 text-xs font-bold bg-gradient-to-r from-purple-100 to-purple-200 text-purple-800 rounded-full border border-purple-300 shadow-sm dark:from-purple-900/30 dark:to-purple-800/30 dark:text-purple-200 dark:border-purple-600">
-                  👑 VIP
-                </span>
-             )}
-             {patient.Mlc && (
-               <span className="inline-flex items-center px-2 py-1 text-xs font-bold bg-gradient-to-r from-orange-100 to-orange-200 text-orange-800 rounded-full border border-orange-300 shadow-sm dark:from-orange-900/30 dark:to-orange-800/30 dark:text-orange-200 dark:border-orange-600">
-                 📋 MLC
-               </span>
-             )}
-             {patient.twostepcheck && (
-                 <span className="inline-flex items-center px-2 py-1 text-xs font-bold bg-gradient-to-r from-blue-100 to-blue-200 text-blue-800 rounded-full border border-blue-300 shadow-sm dark:from-blue-900/30 dark:to-blue-800/30 dark:text-blue-200 dark:border-blue-600">
-                   🔍 Review
-                 </span>
-             )}
-             {patient.tat_breached && !patient.is_done && (
-                <span className="inline-flex items-center px-2 py-1 text-xs font-bold bg-gradient-to-r from-red-200 to-red-300 text-red-900 rounded-full border-2 border-red-400 shadow-md animate-pulse dark:from-red-800/30 dark:to-red-700/30 dark:text-red-100 dark:border-red-500">
-                  ⚠️ OVERDUE
-                </span>
-             )}
-           </div>
-         </td>
-        <td className={`px-4 py-4 text-sm max-w-xs ${
-          darkMode ? 'text-white' : 'text-gray-900'
-        }`}>
-          <div className="space-y-2">
-            <div className="truncate font-medium" title={patient.notes}>
-              {patient.notes || 'No clinical history available'}
-            </div>
-            {patient.history_files && patient.history_files.length > 0 && (
-              <div className="flex flex-wrap gap-1">
-                {patient.history_files.map((file, index) =>{
-                    let fileUrl = file;
-                    if (fileUrl.includes("/https/")) {
-                      fileUrl = fileUrl.split("/https/")[1];
-                      fileUrl = "https://" + fileUrl;
-                    }
-                    return(
-                        <a key={index}
-                          href={fileUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gradient-to-r from-indigo-100 to-blue-100 dark:from-indigo-900/30 dark:to-blue-900/30 text-indigo-800 dark:text-indigo-200 border border-indigo-200 dark:border-indigo-600 hover:from-indigo-200 hover:to-blue-200 dark:hover:from-indigo-800 dark:hover:to-blue-800 transition-all duration-200"
-                        >
-                          H{index + 1}
-                        </a>
-                    );
-                })}
-              </div>
-            )}
-          </div>
-        </td>
-        <td className="px-4 py-4 whitespace-nowrap text-sm">
-          <div className="flex space-x-2">
-          
-                       <button
-                       
-                         onClick={(e) => {
-                           e.stopPropagation();
-                           navigate(`/viewer?id=${patient.id}`);
-                         }}
-                         className="inline-flex items-center px-3 py-1 rounded-lg text-xs font-medium bg-gradient-to-r from-blue-100 to-blue-200 text-blue-700 hover:from-blue-200 hover:to-blue-300 border border-blue-300 transition-all duration-200 transform hover:scale-105 dark:from-blue-900/30 dark:to-blue-800/30 dark:text-blue-200 dark:hover:from-blue-800 dark:hover:to-blue-700 dark:border-blue-600"
-                       >
-                         👁️ View
-                       </button>
-            <button 
-              className="inline-flex items-center px-3 py-1 rounded-lg text-xs font-medium bg-gradient-to-r from-emerald-100 to-green-200 dark:from-emerald-900/30 dark:to-green-800/30 text-emerald-700 dark:text-emerald-200 hover:from-emerald-200 hover:to-green-300 dark:hover:from-emerald-800 dark:hover:to-green-700 border border-emerald-300 dark:border-emerald-600 transition-all duration-200 transform hover:scale-105"
-              onClick={() => setSelectedReport(patient)}  
-            >
-              ✏️ Edit
-            </button>
-            {patient.patient_reports && patient.patient_reports.length > 0 && (
-              <a 
-                href={patient.patient_reports[0].url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center px-3 py-1 rounded-lg text-xs font-medium bg-gradient-to-r from-purple-100 to-purple-200 dark:from-purple-900/30 dark:to-purple-800/30 text-purple-700 dark:text-purple-200 hover:from-purple-200 hover:to-purple-300 dark:hover:from-purple-800 dark:hover:to-purple-700 border border-purple-300 dark:border-purple-600 transition-all duration-200 transform hover:scale-105"
-              >
-                📄 Report
-              </a>
-            )}
-          </div>
-        </td>
-      </tr>
-    ))}
-  </tbody>
-</table>
-            ) : (
-              renderGridView()
-            )}
-          </div>
-          
-          {filteredPatients.length === 0 && viewMode === 'table' && (
-            <div className="text-center py-16">
-              <div className={`w-24 h-24 mx-auto mb-4 rounded-full flex items-center justify-center ${
-                darkMode ? 'bg-gray-700' : 'bg-gradient-to-r from-gray-100 to-gray-200'
-              }`}>
-                <span className="text-4xl text-gray-400">📋</span>
-              </div>
-              <h3 className={`text-lg font-semibold mb-2 ${
-                darkMode ? 'text-gray-300' : 'text-gray-600'
-              }`}>No patients found</h3>
-              <p className={darkMode ? 'text-gray-400' : 'text-gray-500'}>Try adjusting your search criteria or filters.</p>
-            </div>
-          )}
-        </div>
+        {/* Grid Table */}
+        <CoordinatorGridTable
+          darkMode={darkMode}
+          filteredPatients={filteredPatients}
+          selectedPatients={selectedPatients}
+          handlePatientSelect={handlePatientSelect}
+          setSelectedReport={setSelectedReport}
+          getLiveTimeRemaining={getLiveTimeRemaining}
+          formatTimeRemaining={formatTimeRemaining}
+          getTimeRemainingColor={getTimeRemainingColor}
+          viewMode={viewMode}
+          renderGridView={renderGridView}
+          headerHeight={headerHeight}
+          filterHeight={filterHeight}
+          showInstitutionDropdown={showInstitutionDropdown}
+          setShowInstitutionDropdown={setShowInstitutionDropdown}
+          filters={filters}
+          handleFilterChange={handleFilterChange}
+          patients={patients}
+        />
       </div>
 
-      {/* Click outside to close profile dropdown */}
-      {showProfile && (
-        <div 
-          className="fixed inset-0 z-40" 
-          onClick={() => setShowProfile(false)}
-        />
-      )}
-
-      {/* Enhanced Modal */}
+      {/* Edit Modal */}
       {selectedReport && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className={`w-full max-w-4xl rounded-3xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col ${
             darkMode ? 'bg-gray-800' : 'bg-white'
           }`}>
@@ -2026,63 +1281,6 @@ useEffect(() => {
             </div>
           </div>
         </div>
-      )}
-
-      {/* Logout Confirmation Modal */}
-      {showLogoutConfirm && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className={`w-full max-w-md rounded-2xl shadow-2xl overflow-hidden ${
-            darkMode ? 'bg-gray-800' : 'bg-white'
-          }`}>
-            <div className="bg-gradient-to-r from-red-500 to-red-600 px-6 py-4 text-white">
-              <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
-                  <span className="text-xl">🚪</span>
-                </div>
-                <div>
-                  <h2 className="text-xl font-bold">Confirm Logout</h2>
-                  <p className="text-red-100 text-sm">Are you sure you want to logout?</p>
-                </div>
-              </div>
-            </div>
-            
-            <div className="p-6">
-              <p className={`mb-6 ${
-                darkMode ? 'text-gray-300' : 'text-gray-600'
-              }`}>
-                You'll need to login again to access the dashboard.
-              </p>
-              
-              <div className="flex justify-end space-x-3">
-                <button
-                  onClick={() => setShowLogoutConfirm(false)}
-                  className={`px-6 py-2 rounded-lg font-medium transition-colors duration-200 ${
-                    darkMode 
-                      ? 'bg-gray-600 text-gray-300 hover:bg-gray-500' 
-                      : 'bg-gray-300 text-gray-700 hover:bg-gray-400'
-                  }`}
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleLogout}
-                  className="px-6 py-2 bg-red-500 text-white rounded-lg font-medium hover:bg-red-600 transition-colors duration-200 flex items-center space-x-2"
-                >
-                  <span>Yes, Logout</span>
-                  <span>→</span>
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Click outside to close logout modal */}
-      {showLogoutConfirm && (
-        <div 
-          className="fixed inset-0 z-40" 
-          onClick={() => setShowLogoutConfirm(false)}
-        />
       )}
     </div>
   );

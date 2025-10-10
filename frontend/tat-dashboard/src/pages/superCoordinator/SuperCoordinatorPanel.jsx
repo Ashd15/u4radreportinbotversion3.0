@@ -55,8 +55,7 @@ const SuperCoordinatorPanel = () => {
       setClients(clientsData);
       setError(null);
     } catch (err) {
-      setError('');
-      // Mock data for demonstration when API is not availablss
+      setError('');      // Mock data for demonstration when API is not availablss
      
     } finally {
       setLoading(false);
