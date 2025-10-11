@@ -61,6 +61,21 @@ const apiHandlers = {
     if (!response.ok) throw new Error('Failed to replace radiologist');
     return await response.json();
   },
+   // Reassign patient with reason
+  reassignPatient: async (dbId, reviewReason) => {
+    const response = await fetch(`${API_BASE_URL}/reassign_case/${dbId}/`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': localStorage.getItem('csrfToken') || '',
+      },
+      body: JSON.stringify({ review_reason: reviewReason }),
+    });
+
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'Failed to reassign patient');
+    return data;
+  },
 };
 
 export default apiHandlers;
