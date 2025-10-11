@@ -36,6 +36,20 @@ const CoordinatorHandler = {
     }
   },
 
+  getCaseCounts: async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/case_counts/`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Error fetching case counts:', error);
+      throw error;
+    }
+  },
+
   // Update patient status
   updatePatientStatus: async (patientId, statusData) => {
     try {
@@ -165,7 +179,45 @@ const CoordinatorHandler = {
     console.error("Error updating patient:", error);
     throw error;
   }
-}
+},
+
+searchPatients: async (searchTerm) => {
+         if (!searchTerm) {
+           return []; // Or fetch all patients if the term is empty
+         }
+         try {
+           // We send the search term for both name and ID. 
+           // The backend will use OR logic to find matches in either field.
+           const response = await fetch(`${API_BASE_URL}/search_patient/?patient_name=${searchTerm}&patient_id=${searchTerm}`);
+           if (!response.ok) {
+             throw new Error(`HTTP error! status: ${response.status}`);
+           }
+           const data = await response.json();
+           return data.results || [];
+         } catch (error) {
+           console.error('Error searching patients:', error);
+           throw error;
+         }
+       },
+
+  getAllInstitutions: async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/all_institute/`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Error fetching institutions:', error);
+      throw error;
+    }
+  },
+
+
+
+  
+      
 
 
 };

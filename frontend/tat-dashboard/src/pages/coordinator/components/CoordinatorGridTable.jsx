@@ -18,6 +18,7 @@ const CoordinatorGridTable = ({
   setShowInstitutionDropdown,
   filters,
   handleFilterChange,
+  institutions,
   patients
 }) => {
   const navigate = useNavigate();
@@ -60,7 +61,7 @@ const CoordinatorGridTable = ({
               {header === 'Institution' ? (
                 <>
                   <button
-                    onClick={() => setShowInstitutionDropdown(!showInstitutionDropdown)}
+                    // onClick={() => setShowInstitutionDropdown(!showInstitutionDropdown)}
                     className={`flex items-center space-x-2 hover:text-blue-500 transition-colors ${
                       filters.institution ? 'text-blue-500' : ''
                     }`}
@@ -96,10 +97,10 @@ const CoordinatorGridTable = ({
                         </button>
                         
                         {[...new Set(patients.map(p => p.institution_name))]
-                          .filter(name => name)
+                          .filter(name => name && name !== 'None')
                           .sort((a, b) => a.localeCompare(b))
                           .map((institution, index) => {
-                            const count = patients.filter(p => p.institution_name === institution).length;
+                            const count = filteredPatients.filter(p => p.institution_name === institution).length;
                             return (
                               <button
                                 key={index}

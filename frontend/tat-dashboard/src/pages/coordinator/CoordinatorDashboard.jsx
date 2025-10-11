@@ -39,6 +39,8 @@ const Coordinator = () => {
   });
 
   const [liveTimeRemaining, setLiveTimeRemaining] = useState({});  
+  const [stats, setStats] = useState({ totalCases: 0, pendingCases: 0, reportedCases: 0, overdueCases: 0 });
+  const [institutions, setInstitutions] = useState([]);
 
   const user = JSON.parse(localStorage.getItem("user"))?.user;
   const firstName = user?.first_name || "";
@@ -71,17 +73,6 @@ const Coordinator = () => {
     return [...new Set(options)];
   };
 
-  const getDashboardStats = () => {
-    if (!Array.isArray(patients)) return { totalCases: 0, pendingCases: 0, reportedCases: 0, overdueCases: 0 };
-    const totalCases = patients.length;
-    const pendingCases = patients.filter(p => !p.is_done).length;
-    const reportedCases = patients.filter(p => p.is_done).length;
-    const overdueCases = patients.filter(p => p.tat_breached && !p.is_done).length;
-    
-    return { totalCases, pendingCases, reportedCases, overdueCases };
-  };
-  const stats = getDashboardStats();
-
   useEffect(() => {
     fetchData();
   }, []);
@@ -89,11 +80,13 @@ const Coordinator = () => {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [coordinatorData, patientData, radiologistData, bodyPartsData] = await Promise.all([
+      const [coordinatorData, patientData, radiologistData, bodyPartsData, caseCounts, institutionsData] = await Promise.all([
         CoordinatorHandler.getCoordinators(),
         CoordinatorHandler.getTatCounters(),
         CoordinatorHandler.getRadiologists().catch(() => []),
-        CoordinatorHandler.getBodyParts().catch(() => [])
+        CoordinatorHandler.getBodyParts().catch(() => []),
+        CoordinatorHandler.getCaseCounts(),
+        CoordinatorHandler.getAllInstitutions()
       ]);
       
       setCoordinators(coordinatorData);
@@ -101,6 +94,15 @@ const Coordinator = () => {
       setFilteredPatients(patientData.results || []);
       setRadiologists(radiologistData);
       setBodyParts(bodyPartsData);
+      if (caseCounts) {
+        setStats({
+          totalCases: caseCounts.total_cases || 0,
+          pendingCases: caseCounts.pending_cases || 0,
+          reportedCases: caseCounts.reported_cases || 0,
+          overdueCases:0
+        });
+        setInstitutions(institutionsData.institutions || []);
+      }
     } catch (error) {
       console.error("Error fetching data:", error);
     } finally {
@@ -143,38 +145,54 @@ const Coordinator = () => {
   }, [patients]);
 
   useEffect(() => {
-    let filtered = [...patients];
+    const applyFiltersAndSort = (patientsToFilter) => {
+      let filtered = [...patientsToFilter];
+  
+      if (filters.bodyPart) {
+        filtered = filtered.filter(p => p.body_part_examined === filters.bodyPart);
+      }
+      if (filters.allocated) {
+        const isAssigned = filters.allocated === 'Assigned';
+        filtered = filtered.filter(p => isAssigned ? p.radiologist?.length > 0 : p.radiologist?.length === 0);
+      }
+      if (filters.status) {
+        const isDone = filters.status === 'Completed';
+        filtered = filtered.filter(p => p.is_done === isDone);
+      }
+      if (filters.modality) {
+        filtered = filtered.filter(p => p.modality === filters.modality);
+      }
+      if (filters.studyDate) {
+        filtered = filtered.filter(p => p.study_date === filters.studyDate);
+      }
+      if (filters.institution) {
+        filtered = filtered.filter(p => p.institution_name === filters.institution);
+      }
+  
+      return filtered;
+    };
 
-    if (searchTerm) {
-      filtered = filtered.filter(p => 
-        p.patient_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        p.patient_id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        p.institution_name?.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-    }
-    
-    if (filters.bodyPart) {
-      filtered = filtered.filter(p => p.body_part_examined === filters.bodyPart);
-    }
-    if (filters.allocated) {
-      const isAssigned = filters.allocated === 'Assigned';
-      filtered = filtered.filter(p => isAssigned ? p.radiologist?.length > 0 : p.radiologist?.length === 0);
-    }
-    if (filters.status) {
-      const isDone = filters.status === 'Completed';
-      filtered = filtered.filter(p => p.is_done === isDone);
-    }
-    if (filters.modality) {
-      filtered = filtered.filter(p => p.modality === filters.modality);
-    }
-    if (filters.studyDate) {
-      filtered = filtered.filter(p => p.study_date === filters.studyDate);
-    }
-    if (filters.institution) {
-      filtered = filtered.filter(p => p.institution_name === filters.institution);
-    }
+    const handleSearch = async () => {
+      if (searchTerm) {
+        setLoading(true);
+        try {
+          const searchResults = await CoordinatorHandler.searchPatients(searchTerm);
+          const sortedResults = sortPatients(searchResults);
+          setFilteredPatients(applyFiltersAndSort(sortedResults));
+        } catch (error) {
+          console.error("Search failed:", error);
+          setFilteredPatients([]);
+        } finally {
+          setLoading(false);
+        }
+      } else {
+        const sortedPatients = sortPatients(patients);
+        setFilteredPatients(applyFiltersAndSort(sortedPatients));
+      }
+    };
 
-    filtered.sort((a, b) => {
+    const sortPatients = (patientsToSort) => {
+      return patientsToSort.sort((a, b) => {
       const aUrgentUnreported = a.urgent && !a.is_done;
       const bUrgentUnreported = b.urgent && !b.is_done;
       
@@ -188,9 +206,10 @@ const Coordinator = () => {
       if (!aOverdue && bOverdue) return 1;
       
       return b.id - a.id;
-    });
+      });
+    };
 
-    setFilteredPatients(filtered);
+    handleSearch();
   }, [filters, patients, searchTerm]);
 
   const handleFilterChange = (filterType, value) => {
@@ -717,8 +736,8 @@ const Coordinator = () => {
           viewMode={viewMode}
           setViewMode={setViewMode}
           showInstitutionDropdown={showInstitutionDropdown}
-          setShowInstitutionDropdown={setShowInstitutionDropdown}
-          patients={patients}
+          setShowInstitutionDropdown={setShowInstitutionDropdown}          
+          institutions={institutions}
           filterRef={filterRef}
         />
 
@@ -740,7 +759,7 @@ const Coordinator = () => {
           setShowInstitutionDropdown={setShowInstitutionDropdown}
           filters={filters}
           handleFilterChange={handleFilterChange}
-          patients={patients}
+          institutions={institutions}
         />
       </div>
 

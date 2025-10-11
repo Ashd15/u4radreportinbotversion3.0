@@ -12,7 +12,7 @@ const CoordinatorFilters = ({
   setViewMode,
   showInstitutionDropdown,
   setShowInstitutionDropdown,
-  patients
+  institutions
 }) => {
   const [showDatePicker, setShowDatePicker] = useState(false);
 
@@ -56,124 +56,146 @@ const CoordinatorFilters = ({
       </div>
 
       {/* Filter Dropdowns */}
-      <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
-        {[
-          { key: 'bodyPart', label: 'Body Parts', options: bodyParts.map(part => ({ value: part.name, label: part.name })) },
-          { key: 'allocated', label: 'Allocation Status', options: [{ value: 'Assigned', label: 'Assigned' }, { value: 'Unassigned', label: 'Unassigned' }] },
-          { key: 'status', label: 'Status', options: [{ value: 'Pending', label: 'Pending' }, { value: 'Completed', label: 'Completed' }] },
-          { key: 'modality', label: 'Modalities', options: getUniqueOptions('modality').map(opt => ({ value: opt, label: opt })) }
-        ].map(filter => (
-          <select
-            key={filter.key}
-            value={filters[filter.key]}
-            onChange={(e) => handleFilterChange(filter.key, e.target.value)}
-            className={`px-2 py-1 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent shadow-sm text-xs ${
-              darkMode 
-                ? 'bg-gray-700 border-gray-600 text-white' 
-                : 'bg-white border-gray-300'
-            }`}
-          >
-            <option value="">All {filter.label}</option>
-            {filter.options.map(option => (
-              <option key={option.value} value={option.value}>{option.label}</option>
-            ))}
-          </select>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+  {/* LEFT SIDE — Filters and Clear All */}
+  <div className="flex flex-wrap items-center gap-3">
+    {[
+      { key: 'bodyPart', label: 'Body Parts', options: bodyParts.map(part => ({ value: part.name, label: part.name })) },
+      { key: 'allocated', label: 'Allocation Status', options: [{ value: 'Assigned', label: 'Assigned' }, { value: 'Unassigned', label: 'Unassigned' }] },
+      { key: 'status', label: 'Status', options: [{ value: 'Pending', label: 'Pending' }, { value: 'Completed', label: 'Completed' }] },
+      { key: 'modality', label: 'Modalities', options: getUniqueOptions('modality').map(opt => ({ value: opt, label: opt })) },
+    ].map(filter => (
+      <select
+        key={filter.key}
+        value={filters[filter.key]}
+        onChange={(e) => handleFilterChange(filter.key, e.target.value)}
+        className={`px-2 py-1 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent shadow-sm text-xs ${
+          darkMode 
+            ? 'bg-gray-700 border-gray-600 text-white' 
+            : 'bg-white border-gray-300'
+        }`}
+      >
+        <option value="">All {filter.label}</option>
+        {filter.options.map(option => (
+          <option key={option.value} value={option.value}>{option.label}</option>
         ))}
+      </select>
+    ))}
 
-        <button
-          onClick={() => {
-            handleFilterChange('bodyPart', '');
-            handleFilterChange('allocated', '');
-            handleFilterChange('clinicalHistory', '');
-            handleFilterChange('status', '');
-            handleFilterChange('modality', '');
-            handleFilterChange('institution', '');
-            handleFilterChange('studyDate', '');
-            setSearchTerm('');
-          }}
-          className="px-4 py-2 bg-gradient-to-r from-gray-600 to-gray-700 text-white rounded-lg font-medium transition-all duration-200 hover:from-gray-700 hover:to-gray-800 transform hover:scale-105 shadow-lg text-sm"
-        >
-          Clear All
-        </button>
+    <select
+      value={filters.institution}
+      onChange={(e) => handleFilterChange('institution', e.target.value)}
+      className={`px-2 py-1 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent shadow-sm text-xs ${
+        darkMode 
+          ? 'bg-gray-700 border-gray-600 text-white' 
+          : 'bg-white border-gray-300'
+      }`}
+    >
+      <option value="">All Institutions</option>
+      {institutions
+        .filter(inst => inst && inst !== 'None')
+        .map(institution => (
+        <option key={institution} value={institution}>{institution}</option>
+      ))}
+    </select>
 
-        <div className="flex items-center gap-1">
-          {/* View Toggle */}
-          <div className={`flex rounded-lg p-1 ${
-            darkMode ? 'bg-gray-600' : 'bg-gray-100'
-          }`}>
+    <button
+      onClick={() => {
+        handleFilterChange('bodyPart', '');
+        handleFilterChange('allocated', '');
+        handleFilterChange('clinicalHistory', '');
+        handleFilterChange('status', '');
+        handleFilterChange('modality', '');
+        handleFilterChange('institution', '');
+        handleFilterChange('studyDate', '');
+        setSearchTerm('');
+      }}
+      className="px-4 py-2 bg-gradient-to-r from-gray-600 to-gray-700 text-white rounded-lg font-medium transition-all duration-200 hover:from-gray-700 hover:to-gray-800 transform hover:scale-105 shadow-lg text-sm"
+    >
+      Clear All
+    </button>
+  </div>
+
+  {/* RIGHT SIDE — Table/Grid Toggle + Calendar */}
+  <div className="flex items-center gap-2">
+    {/* View Toggle */}
+    <div className={`flex rounded-lg p-1 ${
+      darkMode ? 'bg-gray-600' : 'bg-gray-100'
+    }`}>
+      <button
+        onClick={() => setViewMode('table')}
+        className={`px-4 py-2 rounded-md font-medium transition-all duration-200 ${
+          viewMode === 'table'
+            ? 'bg-blue-500 text-white shadow-md'
+            : darkMode ? 'text-gray-300 hover:text-white' : 'text-gray-600 hover:text-gray-900'
+        }`}
+      >
+        📊 Table
+      </button>
+      <button
+        onClick={() => setViewMode('grid')}
+        className={`px-4 py-2 rounded-md font-medium transition-all duration-200 ${
+          viewMode === 'grid'
+            ? 'bg-blue-500 text-white shadow-md'
+            : darkMode ? 'text-gray-300 hover:text-white' : 'text-gray-600 hover:text-gray-900'
+        }`}
+      >
+        🔳 Grid
+      </button>
+    </div>
+
+    {/* Study Date Filter */}
+    <div className="relative">
+      <button
+        onClick={() => setShowDatePicker(!showDatePicker)}
+        className={`flex items-center space-x-2 px-4 py-2 rounded-lg font-medium transition-all duration-200 ${
+          filters.studyDate
+            ? 'bg-blue-500 text-white shadow-md'
+            : darkMode 
+              ? 'bg-gray-600 text-gray-300 hover:bg-gray-500' 
+              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+        }`}
+      >
+        <span>📅</span>
+        <span className="text-xs">
+          {filters.studyDate ? filters.studyDate : ""}
+        </span>
+      </button>
+      
+      {showDatePicker && (
+        <div className={`absolute top-full right-0 mt-2 z-50 p-3 rounded-lg shadow-xl border ${
+          darkMode ? 'bg-gray-700 border-gray-600' : 'bg-white border-gray-200'
+        }`} style={{ minWidth: '200px' }}>
+          <input
+            type="date"
+            value={filters.studyDate}
+            onChange={(e) => {
+              handleFilterChange('studyDate', e.target.value);
+              setShowDatePicker(false);
+            }}
+            className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+              darkMode 
+                ? 'bg-gray-600 border-gray-500 text-white' 
+                : 'border-gray-300'
+            }`}
+          />
+          {filters.studyDate && (
             <button
-              onClick={() => setViewMode('table')}
-              className={`px-4 py-2 rounded-md font-medium transition-all duration-200 ${
-                viewMode === 'table'
-                  ? 'bg-blue-500 text-white shadow-md'
-                  : darkMode ? 'text-gray-300 hover:text-white' : 'text-gray-600 hover:text-gray-900'
-              }`}
+              onClick={() => {
+                handleFilterChange('studyDate', '');
+                setShowDatePicker(false);
+              }}
+              className="mt-2 w-full px-3 py-1 text-xs bg-red-500 text-white rounded hover:bg-red-600 transition-colors"
             >
-              📊 Table
+              Clear Date
             </button>
-            <button
-              onClick={() => setViewMode('grid')}
-              className={`px-4 py-2 rounded-md font-medium transition-all duration-200 ${
-                viewMode === 'grid'
-                  ? 'bg-blue-500 text-white shadow-md'
-                  : darkMode ? 'text-gray-300 hover:text-white' : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              🔳 Grid
-            </button>
-          </div>
-        
-          {/* Study Date Filter */}
-          <div className="relative">
-            <button
-              onClick={() => setShowDatePicker(!showDatePicker)}
-              className={`flex items-center space-x-2 px-4 py-2 rounded-lg font-medium transition-all duration-200 ${
-                filters.studyDate
-                  ? 'bg-blue-500 text-white shadow-md'
-                  : darkMode 
-                    ? 'bg-gray-600 text-gray-300 hover:bg-gray-500' 
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-              <span>📅</span>
-              <span className="text-xs">
-                {filters.studyDate ? filters.studyDate : ""}
-              </span>
-            </button>
-            
-            {showDatePicker && (
-              <div className={`absolute top-full right-0 mt-2 z-50 p-3 rounded-lg shadow-xl border ${
-                darkMode ? 'bg-gray-700 border-gray-600' : 'bg-white border-gray-200'
-              }`} style={{ minWidth: '200px' }}>
-                <input
-                  type="date"
-                  value={filters.studyDate}
-                  onChange={(e) => {
-                    handleFilterChange('studyDate', e.target.value);
-                    setShowDatePicker(false);
-                  }}
-                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                    darkMode 
-                      ? 'bg-gray-600 border-gray-500 text-white' 
-                      : 'border-gray-300'
-                  }`}
-                />
-                {filters.studyDate && (
-                  <button
-                    onClick={() => {
-                      handleFilterChange('studyDate', '');
-                      setShowDatePicker(false);
-                    }}
-                    className="mt-2 w-full px-3 py-1 text-xs bg-red-500 text-white rounded hover:bg-red-600 transition-colors"
-                  >
-                    Clear Date
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
+          )}
         </div>
-      </div>
+      )}
+    </div>
+  </div>
+</div>
+
     </div>
   );
 };
