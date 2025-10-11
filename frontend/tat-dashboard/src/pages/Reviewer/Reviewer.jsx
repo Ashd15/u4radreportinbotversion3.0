@@ -13,8 +13,11 @@ export default function Reviewer() {
   const [error, setError] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
   const [radiologists, setRadiologists] = useState([]);
+  const [showModal, setShowModal] = useState(false);
+  const [modalPatient, setModalPatient] = useState(null);
+  const [reviewReason, setReviewReason] = useState('');
 
-  // Get logged-in user info from localStorage (set during login)
+  // Get logged-in user info from localStorage
   useEffect(() => {
     const storedUser = localStorage.getItem('user');
     if (storedUser) {
@@ -35,7 +38,7 @@ export default function Reviewer() {
     }
   }, []);
 
-  // Fetch radiologists and patients on component mount
+  // Fetch radiologists and patients
   useEffect(() => {
     fetchRadiologists();
     fetchPatients();
@@ -88,7 +91,6 @@ export default function Reviewer() {
 
     try {
       const result = await apiHandlers.releasePatient(dbId, currentUser.username);
-      
       if (result.success) {
         alert(`Patient ${patientName} released successfully!`);
         setReports(prevReports => prevReports.filter(report => report.dbId !== dbId));
@@ -162,6 +164,30 @@ export default function Reviewer() {
       console.error('Error replacing radiologist:', err);
     }
   };
+
+  // Reassign function using modal
+  const openReassignModal = (report) => {
+    setModalPatient(report);
+    setReviewReason('');
+    setShowModal(true);
+  };
+
+const handleReassign = async () => {
+  if (!reviewReason.trim()) {
+    alert("Review reason is required!");
+    return;
+  }
+
+  try {
+    await apiHandlers.reassignPatient(modalPatient.dbId, reviewReason);
+    alert(`Patient ${modalPatient.name} reassigned successfully!`);
+    setShowModal(false);
+    fetchPatients();
+  } catch (err) {
+    console.error("Error reassigning patient:", err);
+    alert(err.message || "Failed to reassign patient. Check console for details.");
+  }
+};
 
   const handleLogout = () => {
     localStorage.removeItem('authToken');
@@ -402,19 +428,23 @@ export default function Reviewer() {
                       <td className="px-4 py-4">
                         <button 
                           onClick={() => releasePatient(report.dbId, report.name)}
-                          className="px-3 py-1 bg-red-500 hover:bg-red-600 text-white rounded font-medium text-sm transition-colors"
+                          className="px-3 py-1 bg-green-500 hover:bg-green-600 text-white rounded font-medium text-sm transition-colors"
                         >
-                          {report.status}
+                          Mark as Correct
                         </button>
                       </td>
                       <td className="px-4 py-4">
                         <span className="text-sm">{report.assignedTo}</span>
+                        {report.assignedTo !== "Unassigned" && (
+                          <button
+                            onClick={() => openReassignModal(report)}
+                            className="ml-2 px-3 py-1 bg-blue-500 hover:bg-blue-600 text-white rounded font-medium text-sm transition-colors"
+                          >
+                            Reassign
+                          </button>
+                        )}
                       </td>
-                      <td className="px-4 py-4">
-                        <span className="px-3 py-1 bg-yellow-500 text-black rounded font-medium text-sm">
-                          {report.checkImage}
-                        </span>
-                      </td>
+                      <td className="px-4 py-4">{report.checkImage}</td>
                     </tr>
                   ))
                 )}
@@ -423,6 +453,36 @@ export default function Reviewer() {
           </div>
         </div>
       </main>
+
+      {/* Reassign Modal */}
+      {showModal && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-96">
+            <h2 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">Reassign Patient</h2>
+            <p className="mb-2 text-gray-700 dark:text-gray-300">Patient: <strong>{modalPatient.name}</strong></p>
+            <textarea
+              placeholder="Enter reason for reassignment"
+              value={reviewReason}
+              onChange={(e) => setReviewReason(e.target.value)}
+              className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded mb-4 text-gray-900 dark:text-white dark:bg-gray-700"
+            />
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setShowModal(false)}
+                className="px-4 py-2 bg-gray-400 hover:bg-gray-500 text-white rounded"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleReassign}
+                className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded"
+              >
+                Reassign
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

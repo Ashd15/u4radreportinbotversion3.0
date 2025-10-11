@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { fetchTatCounters } from '../doctor/apiConnector';
 import { formatTime } from '../doctor/formatTime';
@@ -71,35 +70,42 @@ function DoctorDashboard() {
     setExpandedIndex(expandedIndex === idx ? null : idx);
   };
 
-  // Filters
-  const filteredPatients = patients.filter(p => {
-    const matchCase =
-      caseFilter === 'all' ||
-      (caseFilter === 'reported' && p.is_done) ||
-      (caseFilter === 'pending' && !p.is_done) ||
-      (caseFilter === 'tatbreach' && p.overdue_seconds > 0);
+  // Filtered patients based on selected filter and search/modality/date
+  const filteredPatients = patients
+    .filter(p => {
+      if (caseFilter === 'all') return true;
+      if (caseFilter === 'reported') return p.is_done;
+      if (caseFilter === 'pending') return !p.is_done;
+      if (caseFilter === 'review case') return p.review_case === true;
+      return true;
+    })
+    .filter(p => {
+      const matchSearch = [p.patient_name, p.patient_id, p.study_description]
+        .some(f => f?.toLowerCase().includes(searchTerm.toLowerCase()));
 
-    const matchSearch = [p.patient_name, p.patient_id, p.study_description]
-      .some(f => f?.toLowerCase().includes(searchTerm.toLowerCase()));
+      const matchModality =
+        selectedModality === 'All' ||
+        p.modality?.toLowerCase() === selectedModality.toLowerCase();
 
-    const matchModality =
-      selectedModality === 'All' ||
-      p.modality?.toLowerCase() === selectedModality.toLowerCase();
+      const matchDate =
+        !selectedDate || p.received_on_db?.slice(0, 10) === selectedDate;
 
-    const matchDate =
-      !selectedDate || p.received_on_db?.slice(0, 10) === selectedDate;
-
-    return matchCase && matchSearch && matchModality && matchDate;
-  });
+      return matchSearch && matchModality && matchDate;
+    });
 
   // Summary counts
   const assignedCases = patients.length;
   const reportedCases = patients.filter(p => p.is_done).length;
   const pendingCases = assignedCases - reportedCases;
-  const reportedPatients = patients.filter(p => p.is_done);
-  const reportedOnTimeCases = reportedPatients.filter(p => (p.overdue_seconds || 0) === 0).length;
-  const tatMonitor = reportedPatients.length > 0
-    ? `${Math.round((reportedOnTimeCases / reportedPatients.length) * 100)}%`
+
+  // Review-specific calculations
+  const reviewCases = patients.filter(p => p.review_case === true);
+  const reviewCount = reviewCases.length;
+
+  // Reported case TAT Monitor (always shown)
+  const reportedOnTimeCases = patients.filter(p => p.is_done && (p.overdue_seconds || 0) === 0).length;
+  const reportedTatMonitor = reportedCases > 0
+    ? `${Math.round((reportedOnTimeCases / reportedCases) * 100)}%`
     : '0%';
 
   return (
@@ -113,7 +119,10 @@ function DoctorDashboard() {
       )}
 
       <div className="flex flex-col flex-1 overflow-hidden">
-        <Header onSidebarToggle={() => setShowSidebar(true)} />
+        <Header
+          onSidebarToggle={() => setShowSidebar(true)}
+           reportedTatMonitor={reportedTatMonitor} // ✅ pass TAT here
+        />
 
         {/* Summary Cards & Filters */}
         <div className="px-1 py-[2px] sticky top-0 bg-white z-10 shadow-sm">
@@ -121,7 +130,7 @@ function DoctorDashboard() {
             <CaseSummaryCard value={assignedCases} label="Assigned" active={caseFilter === 'all'} onClick={() => setCaseFilter('all')} />
             <CaseSummaryCard value={reportedCases} label="Reported" active={caseFilter === 'reported'} onClick={() => setCaseFilter('reported')} />
             <CaseSummaryCard value={pendingCases} label="Pending" active={caseFilter === 'pending'} onClick={() => setCaseFilter('pending')} />
-            <CaseSummaryCard value={tatMonitor} label="TAT" active={caseFilter === 'tatbreach'} onClick={() => setCaseFilter('tatbreach')} />
+            <CaseSummaryCard value={reviewCount} label="Review Case" active={caseFilter === 'review case'} onClick={() => setCaseFilter('review case')} />
           </div>
 
           <Filters
@@ -139,49 +148,45 @@ function DoctorDashboard() {
         <div className="flex-1 overflow-auto px-2 pb-2">
           {filteredPatients.length === 0 && (
             <div className="text-center text-gray-500 mt-4 text-sm">
-              {caseFilter === 'tatbreach' ? 'No TAT breach cases.' : 'No cases found.'}
+              {caseFilter === 'review case' ? 'No review cases.' : 'No cases found.'}
             </div>
           )}
 
           {filteredPatients.map((p, idx) => (
             <div key={p.id}>
+              {/* Patient Card */}
               <div
-                 className={`rounded shadow p-2 mb-2 cursor-pointer hover:shadow-md transition-all duration-200
-    ${
-      p.urgent
-        ? 'bg-red-100 hover:bg-red-200 border border-red-400'
-        : p.vip
-        ? 'bg-yellow-100 hover:bg-yellow-200 border border-yellow-400'
-        : p.Mlc
-        ? 'bg-blue-100 hover:bg-blue-200 border border-blue-400'
-        : p.is_done
-        ? p.overdue_seconds > 0
-          ? 'bg-red-50 hover:bg-red-100 border border-red-200'
-          : 'bg-green-100 hover:bg-green-100 border border-green-400'
-        : 'bg-white hover:bg-gray-50'
-    }
-  `}
+                className={`rounded shadow p-2 mb-2 cursor-pointer hover:shadow-md transition-all duration-200
+                  ${
+                    p.urgent
+                      ? 'bg-red-100 hover:bg-red-200 border border-red-400'
+                      : p.vip
+                      ? 'bg-yellow-100 hover:bg-yellow-200 border border-yellow-400'
+                      : p.Mlc
+                      ? 'bg-blue-100 hover:bg-blue-200 border border-blue-400'
+                      : p.is_done
+                      ? p.overdue_seconds > 0
+                        ? 'bg-red-50 hover:bg-red-100 border border-red-200'
+                        : 'bg-green-100 hover:bg-green-100 border border-green-400'
+                      : 'bg-white hover:bg-gray-50'
+                  }
+                `}
               >
                 <div className="flex justify-between items-start gap-2">
-
                   {/* Left Section */}
                   <div className="flex-1">
                     <div className="text-[12px] text-gray-400">{p.patient_id}</div>
-
                     <div className="font-medium text-[14px] leading-tight flex flex-wrap items-center gap-1">
                       {p.patient_name} • {p.age} y/o • {p.gender} • {p.modality}
                       {p.urgent && <span className="text-red-500 ml-1">• Urgent</span>}
                       {p.vip && <span className="bg-yellow-200 text-yellow-800 text-[10px] px-1 rounded ml-1 font-semibold">VIP</span>}
-                       {p.Mlc && (
-  <span className="bg-blue-200 text-blue-800 text-[10px] px-1 rounded ml-1 font-semibold">
-    MLC
-  </span>
-)}
-
+                      {p.Mlc && <span className="bg-blue-200 text-blue-800 text-[10px] px-1 rounded ml-1 font-semibold">MLC</span>}
                     </div>
-
                     <div className="text-[12px] mt-0.5 line-clamp-1">{p.study_description}</div>
-                      <div className="text-[12px] mt-0.5 line-clamp-1">{p.body_part_examined}</div>
+                    <div className="text-[12px] mt-0.5 line-clamp-1">{p.body_part_examined}</div>
+                    <div className="text-[14px] mt-0.5 line-clamp-1 text-red-500 font-semibold">{p.review_reason}</div>
+
+
                   </div>
 
                   {/* Status & Received Time */}
@@ -276,7 +281,7 @@ function DoctorDashboard() {
           ))}
 
           {/* Show More */}
-          {nextCursor && (
+          {nextCursor && caseFilter !== 'review case' && (
             <div className="text-center mt-2">
               <button
                 onClick={() => loadPatients(nextCursor)}
@@ -292,4 +297,4 @@ function DoctorDashboard() {
   );
 }
 
-export default DoctorDashboard;  
+export default DoctorDashboard;

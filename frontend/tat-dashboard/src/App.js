@@ -14,6 +14,7 @@ import Doctorstatus from './pages/doctorstatus/doctorstatus';
 import LogoutPage from './pages/logout/LogoutPage';
 import CardiologistDashboard from './pages/Ecg_dashboard/Ecg_reporting_dashboard';
 import PatientReportPage from './pages/Ecg_dashboard/Ecg_report';
+import ReviwerDashboard from './pages/Reviewer/Reviewer';
 
 // ✅ Component to handle refresh on browser back/forward
 function ForceRefreshOnBack() {
@@ -55,6 +56,9 @@ function App() {
         {/* <Route path="*" element={<LoginPage />} /> */}
         <Route path="/cardiologist-dashboard" element={<CardiologistDashboard />} />
         <Route path="/ecg-report/:patientId" element={<PatientReportPage />} />
+        <Route path="/ecg-report/:patientId" element={<PatientReportPage />} />
+        <Route path="/reviewer-dashboard" element={<ReviwerDashboard />} />
+        
       </Routes>
     </Router>
   );
