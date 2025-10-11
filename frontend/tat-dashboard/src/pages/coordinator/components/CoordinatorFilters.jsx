@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom'; 
 
 const CoordinatorFilters = ({
   darkMode,
@@ -15,6 +16,7 @@ const CoordinatorFilters = ({
   institutions
 }) => {
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const navigator = useNavigate();
 
   return (
         <div className={`sticky z-40 p-2 rounded-xl shadow-lg border mb-6 backdrop-blur-sm ${
@@ -119,6 +121,17 @@ const CoordinatorFilters = ({
   {/* RIGHT SIDE — Table/Grid Toggle + Calendar */}
   <div className="flex items-center gap-2">
     {/* View Toggle */}
+    <button
+        onClick={() => navigator('/doctor-status')}
+        className={`px-4 py-2 rounded-md font-medium transition-all duration-200 ${
+          viewMode === 'grid'
+            ? 'bg-blue-500 text-white shadow-md'
+            : darkMode ? 'text-gray-300 hover:text-white' : 'text-gray-600 hover:text-gray-900'
+        }`}
+      >
+        🩺 Doctor Status
+      </button>
+    
     <div className={`flex rounded-lg p-1 ${
       darkMode ? 'bg-gray-600' : 'bg-gray-100'
     }`}>
