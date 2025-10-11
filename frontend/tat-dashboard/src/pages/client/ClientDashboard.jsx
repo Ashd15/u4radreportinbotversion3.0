@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react"; 
+import React, { useState, useEffect, useRef } from "react"; 
 import { useNavigate } from "react-router-dom";
 import {
   Search,
@@ -83,6 +83,10 @@ const ClientDashboard = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [uploadingFile, setUploadingFile] = useState(false);
   const [bodyParts, setBodyParts] = useState([]);
+  const [nextCursor, setNextCursor] = useState(null);
+  const [hasMore, setHasMore] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const observerTarget = useRef(null);
   const reportsPerPage = 50;
   const user = JSON.parse(localStorage.getItem("user"))?.user;
   const firstName = user?.first_name || "";
@@ -127,40 +131,13 @@ const fetchBodyParts = async () => {
   const fetchReports = async () => {
   try {
     setLoading(true);
-    const response = await ApiHandler.getTatCounters(); // Change this method name
+    const response = await ApiHandler.getTatCounters();
+    
     if (response.success) {
-      const transformedData = response.data.map(item => ({
-        id: item.id,
-        patient_id: item.patient_id,
-        name: item.patient_name || "N/A",
-        email: item.email || "N/A",
-        testDate: item.recived_on_db ? new Date(item.recived_on_db).toLocaleDateString() : "N/A",
-        modality: item.modality || "N/A",
-        reportDate: item.marked_done_at ? new Date(item.marked_done_at).toLocaleDateString() : item.study_description || "N/A",
-        location: item.body_part_examined || item.study_description || "N/A",
-        status: item.is_done ? "Ready" : "Pending",
-        pdfs: [], // Remove this line as we'll use patient_reports
-        patient_reports: item.patient_reports || [], // Add this
-        history_files: item.history_files || [], // Add this
-        age: item.age,
-        gender: item.gender,
-        testDate: item.study_date,
-        studyDescription: item.study_description,
-        referringDoctor: item.referring_doctor_name,
-        whatsappNumber: item.whatsapp_number,
-        notes: item.notes,
-        bodyPart: item.body_part_examined,
-        isVIP: item.vip || false,
-        isUrgent: item.urgent || false,
-        isMLC: item.Mlc || false,
-        studyId: item.study_id,
-        contrastUsed: item.contrast_used,
-        isFollowUp: item.is_follow_up,
-        imagingViews: item.imaging_views,
-        inhousePatient: item.inhouse_patient
-      }));
+      const transformedData = transformReportsData(response.data.results || []);
       setReports(transformedData);
-      
+      setNextCursor(response.data.next_cursor);
+      setHasMore(!!response.data.next_cursor);
     } else {
       setError(response.error || "Failed to fetch reports");
     }
@@ -170,6 +147,62 @@ const fetchBodyParts = async () => {
     setLoading(false);
   }
 };
+
+const transformReportsData = (data) => {
+  return data.map(item => ({
+    id: item.id,
+    patient_id: item.patient_id,
+    name: item.patient_name || "N/A",
+    email: item.email || "N/A",
+    testDate: item.recived_on_db ? new Date(item.recived_on_db).toLocaleDateString() : "N/A",
+    modality: item.modality || "N/A",
+    reportDate: item.marked_done_at ? new Date(item.marked_done_at).toLocaleDateString() : item.study_description || "N/A",
+    location: item.body_part_examined || item.study_description || "N/A",
+    status: item.is_done ? "Ready" : "Pending",
+    patient_reports: item.patient_reports || [],
+    history_files: item.history_files || [],
+    age: item.age,
+    gender: item.gender,
+    testDate: item.study_date,
+    studyDescription: item.study_description,
+    referringDoctor: item.referring_doctor_name,
+    whatsappNumber: item.whatsapp_number,
+    notes: item.notes,
+    bodyPart: item.body_part_examined,
+    isVIP: item.vip || false,
+    isUrgent: item.urgent || false,
+    isMLC: item.Mlc || false,
+    studyId: item.study_id,
+    contrastUsed: item.contrast_used,
+    isFollowUp: item.is_follow_up,
+    imagingViews: item.imaging_views,
+    inhousePatient: item.inhouse_patient
+  }));
+};
+
+  const loadMoreReports = async () => {
+    if (!nextCursor || isLoadingMore) return;
+
+    try {
+      setIsLoadingMore(true);
+      const response = await ApiHandler.getTatCounters(nextCursor);
+      
+      if (response.success) {
+        const newData = transformReportsData(response.data.results || []);
+        setReports(prev => {
+          const existingIds = new Set(prev.map(p => p.id));
+          const uniqueNewReports = newData.filter(p => !existingIds.has(p.id));
+          return [...prev, ...uniqueNewReports];
+        });
+        setNextCursor(response.data.next_cursor);
+        setHasMore(!!response.data.next_cursor);
+      }
+    } catch (err) {
+      console.error("Error loading more reports:", err);
+    } finally {
+      setIsLoadingMore(false);
+    }
+  };
 
   // Calculate dynamic summary from reports data
   const summary = React.useMemo(() => {
@@ -288,6 +321,27 @@ const fetchBodyParts = async () => {
   const handlePageChange = (page) => {
     setCurrentPage(page);
   };
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !isLoadingMore) {
+          loadMoreReports();
+        }
+      },
+      { threshold: 1.0 }
+    );
+
+    if (observerTarget.current) {
+      observer.observe(observerTarget.current);
+    }
+
+    return () => {
+      if (observerTarget.current) {
+        observer.unobserve(observerTarget.current);
+      }
+    };
+  }, [hasMore, isLoadingMore]);
 
   if (loading) {
     return (
@@ -668,7 +722,44 @@ const fetchBodyParts = async () => {
                 ))}
               </div>
             )}
-            </div> 
+            <div ref={observerTarget} className="w-full py-4 flex justify-center">
+  {hasMore && (
+    <button
+      onClick={loadMoreReports}
+      disabled={isLoadingMore}
+      className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center gap-2 transition-colors"
+    >
+      {isLoadingMore ? (
+        <>
+          <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+          Loading...
+        </>
+      ) : (
+        <>
+          <span>Show More</span>
+          {/* Optional: Add a down arrow icon */}
+          <svg 
+            className="w-4 h-4" 
+            fill="none" 
+            stroke="currentColor" 
+            viewBox="0 0 24 24"
+          >
+            <path 
+              strokeLinecap="round" 
+              strokeLinejoin="round" 
+              strokeWidth={2} 
+              d="M19 9l-7 7-7-7" 
+            />
+          </svg>
+        </>
+      )}
+    </button>
+  )}
+  {!hasMore && reports.length > 0 && (
+    <p className="text-gray-500 text-sm">No more reports to load</p>
+  )}
+</div>
+          </div> 
             
           </div>
         </div>

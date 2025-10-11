@@ -72,6 +72,7 @@ const Coordinator = () => {
   };
 
   const getDashboardStats = () => {
+    if (!Array.isArray(patients)) return { totalCases: 0, pendingCases: 0, reportedCases: 0, overdueCases: 0 };
     const totalCases = patients.length;
     const pendingCases = patients.filter(p => !p.is_done).length;
     const reportedCases = patients.filter(p => p.is_done).length;
@@ -79,7 +80,6 @@ const Coordinator = () => {
     
     return { totalCases, pendingCases, reportedCases, overdueCases };
   };
-
   const stats = getDashboardStats();
 
   useEffect(() => {
@@ -97,8 +97,8 @@ const Coordinator = () => {
       ]);
       
       setCoordinators(coordinatorData);
-      setPatients(patientData);
-      setFilteredPatients(patientData);
+      setPatients(patientData.results || []);
+      setFilteredPatients(patientData.results || []);
       setRadiologists(radiologistData);
       setBodyParts(bodyPartsData);
     } catch (error) {

@@ -39,10 +39,15 @@ class ApiHandler {
     return await this.makeRequest('POST', '/logout/');
   }
 
-  // Get all patient DICOM reports
- static async getTatCounters() {
-  return await this.makeRequest('GET', '/fetch-tat-counters/');
-}
+  // Get all patient DICOM reports with cursor-based pagination
+  static async getTatCounters(cursor = null) {
+    const params = new URLSearchParams();
+    params.append('limit', '3'); // Adjust limit as needed
+    if (cursor) {
+      params.append('cursor', cursor);
+    }
+    return await this.makeRequest('GET', `/fetch-tat-counters/?${params.toString()}`);
+  }
 
   // Update a patient DICOM report
   static async updateDicomReport(id, data) {
@@ -91,14 +96,9 @@ class ApiHandler {
       formData.append('history_file', historyFiles);
     }
 
-    return await api.post(`/upload-historyfile/${dicomId}/`, formData, {
+    return await this.makeRequest('POST', `/upload-historyfile/${dicomId}/`, formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
-    })
-      .then((res) => ({ success: true, data: res.data }))
-      .catch((err) => ({
-        success: false,
-        error: err.response?.data || err.message,
-      }));
+    });
   }
 }
 
