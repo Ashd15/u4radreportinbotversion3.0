@@ -23,6 +23,7 @@ const Coordinator = () => {
   const [viewMode, setViewMode] = useState('table');
   const [showInstitutionDropdown, setShowInstitutionDropdown] = useState(false);
   const navigate = useNavigate();
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const filterRef = useRef(null);
   const headerRef = useRef(null);
   const [nextCursor, setNextCursor] = useState(null);
@@ -62,6 +63,54 @@ const Coordinator = () => {
       document.documentElement.classList.remove('dark');
     }
   }, [darkMode]);
+
+useEffect(() => {
+  if (headerRef.current) {
+    setHeaderHeight(headerRef.current.offsetHeight);
+  }
+  if (filterRef.current) {
+    setFilterHeight(filterRef.current.offsetHeight);
+  }
+}, [loading]); 
+
+
+
+useEffect(() => {
+  const updateHeights = () => {
+    if (headerRef.current) {
+      setHeaderHeight(headerRef.current.offsetHeight);
+    }
+    if (filterRef.current) {
+      setFilterHeight(filterRef.current.offsetHeight);
+    }
+  };
+
+  updateHeights();
+
+  // Add resize observer for dynamic height changes
+  const resizeObserver = new ResizeObserver(updateHeights);
+  
+  if (headerRef.current) {
+    resizeObserver.observe(headerRef.current);
+  }
+  if (filterRef.current) {
+    resizeObserver.observe(filterRef.current);
+  }
+
+  return () => {
+    resizeObserver.disconnect();
+  };
+}, []);
+
+  useEffect(() => {
+    const timerId = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+    }, 2000); // 500ms delay
+
+    return () => {
+      clearTimeout(timerId);
+    };
+  }, [searchTerm]);
 
   const getUniqueOptions = (field) => {
     const options = patients.map(p => {
@@ -198,10 +247,10 @@ const Coordinator = () => {
     };
 
     const handleSearch = async () => {
-      if (searchTerm) {
+      if (debouncedSearchTerm) {
         setLoading(true);
         try {
-          const searchResults = await CoordinatorHandler.searchPatients(searchTerm);
+          const searchResults = await CoordinatorHandler.searchPatients(debouncedSearchTerm);
           const sortedResults = sortPatients(searchResults);
           setFilteredPatients(applyFiltersAndSort(sortedResults));
         } catch (error) {
@@ -235,7 +284,7 @@ const Coordinator = () => {
     };
 
     handleSearch();
-  }, [filters, patients, searchTerm]);
+  }, [filters, patients, debouncedSearchTerm]);
 
   const handleFilterChange = (filterType, value) => {
     setFilters(prev => ({
@@ -268,6 +317,20 @@ const Coordinator = () => {
       const apiCall = assignMode === 'assign' 
         ? CoordinatorHandler.assignRadiologist 
         : CoordinatorHandler.replaceRadiologist;
+
+
+
+       const validPatients = selectedPatients.filter(
+         (patientId) => {
+           const patient = patients.find(p => p.id === patientId);
+           return patient && patient.body_part_examined && patient.body_part_examined.trim() !== '';
+         }
+       );
+    
+       if (validPatients.length === 0) {
+         alert('No valid patients found for assignment (invalid body part).');
+         return;
+       }
   
       await Promise.all(
         selectedPatients.map(patientId => 

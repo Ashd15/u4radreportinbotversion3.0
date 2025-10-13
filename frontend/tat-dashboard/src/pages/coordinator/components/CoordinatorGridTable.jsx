@@ -28,12 +28,12 @@ const CoordinatorGridTable = ({
 
   const renderTableView = () => (
     <table className="min-w-full divide-y divide-gray-200">
-         <thead className={`sticky z-0 bg-gradient-to-r ${
+         <thead className={`sticky z-10 bg-gradient-to-r ${
         darkMode ? 'from-gray-700 to-gray-800' : 'from-gray-50 to-slate-100'
       }`}
       style={{ 
-        top: 30,
-        zIndex: 5,
+       top: `${headerHeight + filterHeight}px`,
+       zIndex: 10,
         boxShadow: darkMode ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.1)'
       }}>
         <tr>
@@ -364,7 +364,7 @@ const CoordinatorGridTable = ({
     <div className={`rounded-2xl shadow-lg border overflow-hidden ${
       darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'
     }`}>
-      <div className="overflow-auto relative" style={{ maxHeight: '500px' }}>
+      <div className="overflow-auto relative" style={{ maxHeight: '420px' }}>
         {viewMode === 'table' ? renderTableView() : renderGridView()}
         
         {filteredPatients.length === 0 && viewMode === 'table' && (
