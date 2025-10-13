@@ -28,16 +28,16 @@ const CoordinatorGridTable = ({
 
   const renderTableView = () => (
     <table className="min-w-full divide-y divide-gray-200">
-         <thead className={`sticky z-30 bg-gradient-to-r ${
+         <thead className={`sticky z-0 bg-gradient-to-r ${
         darkMode ? 'from-gray-700 to-gray-800' : 'from-gray-50 to-slate-100'
       }`}
       style={{ 
-        top: 0,
-        zIndex: 10,
+        top: 30,
+        zIndex: 5,
         boxShadow: darkMode ? '0 2px 8px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.1)'
       }}>
         <tr>
-          <th className={`px-4 py-4 text-left text-xs font-bold uppercase tracking-wider ${
+          <th className={`px-2 py-2 text-left text-xs font-bold uppercase tracking-wider ${
             darkMode ? 'bg-gray-800' : 'bg-gray-50'
 
           }`}>
@@ -58,7 +58,7 @@ const CoordinatorGridTable = ({
             'Institution', 'Modality', 'Study Description', 'Body Part', 'Status',
             'TAT Status', 'Flags', 'Clinical History', 'Actions'
           ].map(header => (
-            <th key={header} className={`px-3 py-2 text-left text-xxs font-bold uppercase tracking-wider ${
+            <th key={header} className={`px-2 py-1 text-left text-xxs font-bold uppercase tracking-wider ${
               darkMode ? 'text-gray-300 bg-gray-800' : 'text-gray-700 bg-gray-50'
             } ${header === 'Institution' ? 'relative' : ''}`}>
               {header === 'Institution' ? (
@@ -381,7 +381,7 @@ const CoordinatorGridTable = ({
           </div>
         )}
       </div>
-      {viewMode === 'table' && hasMore && (
+      {hasMore && (
         <div className="p-4 flex justify-center">
           <button
             onClick={loadMorePatients}
@@ -406,7 +406,7 @@ const CoordinatorGridTable = ({
           </button>
         </div>
       )}
-      {viewMode === 'table' && !hasMore && filteredPatients.length > 0 && (
+      {!hasMore && filteredPatients.length > 0 && (
         <div className="p-4 text-center text-gray-500 dark:text-gray-400">
           No more patients to load.
         </div>

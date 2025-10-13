@@ -124,9 +124,7 @@ const CoordinatorFilters = ({
     <button
         onClick={() => navigator('/doctor-status')}
         className={`px-4 py-2 rounded-md font-medium transition-all duration-200 ${
-          viewMode === 'grid'
-            ? 'bg-blue-500 text-white shadow-md'
-            : darkMode ? 'text-gray-300 hover:text-white' : 'text-gray-600 hover:text-gray-900'
+          darkMode ? 'text-gray-300 hover:text-white' : 'text-gray-600 hover:text-gray-900'
         }`}
       >
         🩺 Doctor Status

@@ -20,7 +20,7 @@ const CoordinatorHandler = {
   getTatCounters: async (cursor = null) => {
     try {
       const params = new URLSearchParams();
-      params.append('limit', '3'); // You can adjust this limit
+      params.append('limit', '5'); // You can adjust this limit
       if (cursor) {
         params.append('cursor', cursor);
       }
