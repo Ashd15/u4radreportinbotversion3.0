@@ -25,6 +25,9 @@ const Coordinator = () => {
   const navigate = useNavigate();
   const filterRef = useRef(null);
   const headerRef = useRef(null);
+  const [nextCursor, setNextCursor] = useState(null);
+  const [hasMore, setHasMore] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
 
   const [darkMode, setDarkMode] = useState(false);
 
@@ -82,7 +85,7 @@ const Coordinator = () => {
       setLoading(true);
       const [coordinatorData, patientData, radiologistData, bodyPartsData, caseCounts, institutionsData] = await Promise.all([
         CoordinatorHandler.getCoordinators(),
-        CoordinatorHandler.getTatCounters(),
+        CoordinatorHandler.getTatCounters(), // Initial fetch
         CoordinatorHandler.getRadiologists().catch(() => []),
         CoordinatorHandler.getBodyParts().catch(() => []),
         CoordinatorHandler.getCaseCounts(),
@@ -103,10 +106,32 @@ const Coordinator = () => {
         });
         setInstitutions(institutionsData.institutions || []);
       }
+      setNextCursor(patientData.next_cursor);
+      setHasMore(!!patientData.next_cursor);
     } catch (error) {
       console.error("Error fetching data:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadMorePatients = async () => {
+    if (!nextCursor || isLoadingMore) return;
+
+    setIsLoadingMore(true);
+    try {
+      const patientData = await CoordinatorHandler.getTatCounters(nextCursor);
+      if (patientData.results) {
+        const existingIds = new Set(patients.map(p => p.id));
+        const newPatients = patientData.results.filter(p => !existingIds.has(p.id));
+        setPatients(prev => [...prev, ...newPatients]);
+        setNextCursor(patientData.next_cursor);
+        setHasMore(!!patientData.next_cursor);
+      }
+    } catch (error) {
+      console.error("Error loading more patients:", error);
+    } finally {
+      setIsLoadingMore(false);
     }
   };
 
@@ -760,6 +785,9 @@ const Coordinator = () => {
           filters={filters}
           handleFilterChange={handleFilterChange}
           institutions={institutions}
+          loadMorePatients={loadMorePatients}
+          hasMore={hasMore}
+          isLoadingMore={isLoadingMore}
         />
       </div>
 

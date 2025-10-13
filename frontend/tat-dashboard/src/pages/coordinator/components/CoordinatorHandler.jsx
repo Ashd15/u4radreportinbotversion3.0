@@ -17,12 +17,17 @@ const CoordinatorHandler = {
   },
 
   // Get all patient data with TAT counters
-  getTatCounters: async () => {
+  getTatCounters: async (cursor = null) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/fetch-tat-counters/`, {
-      method: "GET",
-      credentials: "include",   
-    });
+      const params = new URLSearchParams();
+      params.append('limit', '3'); // You can adjust this limit
+      if (cursor) {
+        params.append('cursor', cursor);
+      }
+      const response = await fetch(`${API_BASE_URL}/fetch-tat-counters/?${params.toString()}`, {
+        method: "GET",
+        credentials: "include",
+      });
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
