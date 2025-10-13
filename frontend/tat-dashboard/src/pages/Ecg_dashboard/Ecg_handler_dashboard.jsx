@@ -1,9 +1,8 @@
-// apiHandler.js
 import axios from "axios";
 
-const API_BASE_URL = "http://127.0.0.1:8000/api";
+const API_BASE_URL = "http://localhost:8000/api";
 
-// Create an Axios instance
+// Create an Axios instance with same configuration as login
 const api = axios.create({
   baseURL: API_BASE_URL,
   withCredentials: true,
@@ -11,6 +10,47 @@ const api = axios.create({
     "Content-Type": "application/json",
   },
 });
+
+// Add a request interceptor
+api.interceptors.request.use(
+  (config) => {
+    config.withCredentials = true;
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
+// Add a response interceptor to handle errors globally
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    // Handle 404 with HTML response (Django redirect to login page)
+    if (error.response?.status === 404 && 
+        typeof error.response.data === 'string' && 
+        error.response.data.includes('<!DOCTYPE html>')) {
+      console.error("Session expired - redirecting to login");
+      localStorage.removeItem("user");
+      window.location.href = '/';
+      return Promise.reject({
+        response: {
+          status: 401,
+          data: { message: "Session expired. Please login again." }
+        }
+      });
+    }
+    
+    // Handle 401/403 errors
+    if (error.response?.status === 401 || error.response?.status === 403) {
+      console.error("Unauthorized - redirecting to login");
+      localStorage.removeItem("user");
+      window.location.href = '/';
+    }
+    
+    return Promise.reject(error);
+  }
+);
 
 // Utility function for error handling
 const handleError = (error, defaultMsg = "Request failed. Please try again.") => {
@@ -63,6 +103,58 @@ export const markPatientAsUrgent = async (patientId, isUrgent) => {
     return response.data;
   } catch (error) {
     handleError(error);
+  }
+};
+
+export const fetchECGClient = async () => {
+  try {
+    // Check if user is logged in
+    const userData = localStorage.getItem("user");
+    if (!userData) {
+      return { 
+        success: false, 
+        message: "Not logged in. Please login first.",
+        requiresLogin: true
+      };
+    }
+
+    const response = await api.get('/get-ecg-client/');
+
+    console.log("ECG Client Response:", response.data); // Debug log
+
+    if (response.data && response.data.success) {
+      return {
+        success: true,
+        data: response.data
+      };
+    } else {
+      return {
+        success: false,
+        message: "Invalid response format from server"
+      };
+    }
+
+  } catch (error) {
+    console.error("Error fetching ECG client:", error);
+    
+    if (error.response) {
+      return { 
+        success: false, 
+        message: error.response.data?.message || "Failed to fetch ECG client",
+        status: error.response.status,
+        requiresLogin: error.response.status === 401 || error.response.status === 403
+      };
+    } else if (error.request) {
+      return { 
+        success: false, 
+        message: "No response from server. Please check your connection." 
+      };
+    } else {
+      return { 
+        success: false, 
+        message: error.message || "An unexpected error occurred" 
+      };
+    }
   }
 };
 
@@ -166,10 +258,10 @@ export const uploadECGFiles = async (files, location) => {
     files.forEach((file) => formData.append("ecg_file", file));
     formData.append("location", location);
 
-    const token = localStorage.getItem("token");
-    const response = await axios.post(`${API_BASE_URL}/upload-ecg/`, formData, {
+    // Use the api instance with withCredentials instead of token
+    const response = await api.post("/upload-ecg/", formData, {
       headers: {
-        Authorization: token ? `Bearer ${token}` : "",
+        "Content-Type": "multipart/form-data",
       },
     });
 
@@ -181,7 +273,7 @@ export const uploadECGFiles = async (files, location) => {
 
 export const fetchPatients = async (params = {}) => {
   try {
-    const response = await api.get("/upload-patient-ecgs/", { params });
+    const response = await api.get("/get-ecg-client/", { params });
     return response.data;
   } catch (error) {
     handleError(error);
@@ -197,7 +289,11 @@ export const addPatient = async (patientData) => {
       }
     });
 
-    const response = await api.post("/upload-patient-ecgs/", formData);
+    const response = await api.post("/upload-patient-ecgs/", formData, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    });
     return response.data;
   } catch (error) {
     handleError(error);
@@ -247,17 +343,12 @@ export const getECGPDFReportDetails = async (reportId) => {
 
 export const downloadECGPDFReport = async (reportId, patientName = "Patient") => {
   try {
-    const token = localStorage.getItem("token");
-
-    const response = await axios.get(`${API_BASE_URL}/ecg-reports/download/${reportId}/`, {
-      headers: { Authorization: token ? `Bearer ${token}` : "" },
-    });
+    const response = await api.get(`/ecg-reports/download/${reportId}/`);
 
     if (!response.data?.url) throw new Error("File URL not available");
 
     const fileUrl = `${API_BASE_URL.replace("/api", "")}${response.data.url}`;
-    const fileResponse = await axios.get(fileUrl, {
-      headers: { Authorization: token ? `Bearer ${token}` : "" },
+    const fileResponse = await api.get(fileUrl, {
       responseType: "blob",
     });
 
