@@ -141,6 +141,13 @@ useEffect(() => {
         CoordinatorHandler.getAllInstitutions()
       ]);
       
+
+    // Calculate overdue cases from patientData
+    const overdueCases = patientData.results?.filter(patient => 
+      patient.tat_breached === true && 
+      (!patient.patient_reports || patient.patient_reports.length === 0)
+    ).length || 0;
+
       setCoordinators(coordinatorData);
       setPatients(patientData.results || []);
       setFilteredPatients(patientData.results || []);
@@ -151,7 +158,7 @@ useEffect(() => {
           totalCases: caseCounts.total_cases || 0,
           pendingCases: caseCounts.pending_cases || 0,
           reportedCases: caseCounts.reported_cases || 0,
-          overdueCases:0
+          overdueCases: overdueCases
         });
         setInstitutions(institutionsData.institutions || []);
       }
