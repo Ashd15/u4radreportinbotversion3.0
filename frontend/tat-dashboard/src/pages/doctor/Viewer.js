@@ -9,6 +9,8 @@ import {
 
 import "../doctor/Viewer.css";
 import { FiFile } from "react-icons/fi"; // File icon from react-icons
+import html2canvas from "html2canvas";
+
 
 import * as cornerstone from '@cornerstonejs/core';
 import * as cornerstoneTools from '@cornerstonejs/tools';
@@ -46,6 +48,7 @@ const Tools = {
   "Magnify": cornerstoneTools.MagnifyTool,
   "Wheel": cornerstoneTools.StackScrollTool,
   "ReferenceLines": cornerstoneTools.ReferenceLinesTool,
+ 
 };
 
 class Viewer extends Component {
@@ -89,8 +92,12 @@ class Viewer extends Component {
     this.viewportSettings = this.viewportSettings.bind(this);
     this.layoutSettings = this.layoutSettings.bind(this);
     this.openImageInViewport = this.openImageInViewport.bind(this);
+    this.toggleInvert = this.toggleInvert.bind(this);
+    this.downloadAsJPEG = this.downloadAsJPEG.bind(this);
+    this .capture = this.capture.bind(this);
  
   }
+
 
   // Add this new method to fetch patient data
   async fetchPatientData() {
@@ -132,6 +139,63 @@ class Viewer extends Component {
       return null;
     }
   }
+  
+
+downloadAsJPEG(element) {
+  const { patientData } = this.state; // get patient data from state
+
+  if (!element) {
+    console.error("No element provided to downloadAsJPEG");
+    return;
+  }
+
+  // Use fallback if patientData is not yet loaded
+  const patientName = (patientData && patientData.patient_name) || "unknown_patient";
+  const patientId = (patientData && patientData.patient_id) || "unknown_id";
+
+  html2canvas(element, { allowTaint: true }).then((canvas) => {
+    // Convert canvas to JPEG data URL
+    const jpegImageUrl = canvas.toDataURL("image/jpeg");
+
+    // Sanitize file name
+    const sanitizedPatientName = patientName.replace(/[^a-z0-9]/gi, "_").toLowerCase();
+    const sanitizedPatientId = patientId.replace(/[^a-z0-9]/gi, "_").toLowerCase();
+
+    // Trigger download
+    const link = document.createElement("a");
+    link.href = jpegImageUrl;
+    link.download = `${sanitizedPatientId}_${sanitizedPatientName}.jpeg`;
+    link.click();
+  });
+}
+
+ //function to capture selected viewport and download it as image
+  capture(element) {
+    html2canvas(element, { allowTaint: true }).then(function (canvas) {
+      // Get the base64 image URL from the canvas
+      const imageUrl = canvas.toDataURL('image/png');
+  
+      if (window.editor) {
+        window.editor.model.change(writer => {
+          // Get the end position of the document root to insert the image at the end
+          const root = window.editor.model.document.getRoot();
+          const endPosition = writer.createPositionAt(root, 'end');
+  
+          // Create an image element with the captured image URL
+          const imageElement = writer.createElement('image', {
+            src: imageUrl,
+            alt: 'Captured Screenshot'
+          });
+  
+          // Insert the image at the end position of the document
+          writer.insert(imageElement, endPosition);
+        });
+      } else {
+        console.error("CKEditor instance not found.");
+      }
+    });
+  }
+
 
   toggleDetails = () => {
     this.setState((prevState) => ({
@@ -458,7 +522,7 @@ class Viewer extends Component {
         const clickListener = (event) => {
           const ID = event.target.dataset.value;
           const modality = event.target.dataset.modality;
-          const targetViewportId = viewportIds[0];
+           const targetViewportId = this.selected_viewport;
           this.openImageInViewport(ID, modality, targetViewportId);
         };
         
@@ -594,7 +658,7 @@ class Viewer extends Component {
     this.setState({ cornerstoneInitialized: true });
   }
 
-  async componentDidMount() {
+async componentDidMount() {
     try {
       // Fetch patient data first
       const patientData = await this.fetchPatientData();
@@ -611,8 +675,9 @@ class Viewer extends Component {
       const studyid = patientData.study_id || "3c475322-dd16d05c-ceaf7688-4d64be59-57de70f0";
 
       // Setting cache size
-      cornerstone.cache.setMaxCacheSize(32000000000);
-      cornerstone.setUseSharedArrayBuffer(false);
+      
+       cornerstone.cache.setMaxCacheSize(3 * 1024 * 1024 * 1024); // 3 GB safe for most systems
+    cornerstone.setUseSharedArrayBuffer(false);
       
       const elements = [
         document.getElementById('viewport1'), 
@@ -770,6 +835,7 @@ class Viewer extends Component {
       });
     }
   }
+
 
   toggleTool(newTool) {
     if (!this.toolGroup) {
@@ -1053,6 +1119,40 @@ class Viewer extends Component {
     this.prev_layout = call;
     event.target.value = '';
   }
+
+  
+
+
+
+  toggleInvert() {
+  if (!this.renderingEngine || !this.selected_viewport) {
+    console.error("Rendering engine or viewport not ready");
+    return;
+  }
+
+  // Get the active viewport
+  const viewport = this.renderingEngine.getViewport(this.selected_viewport);
+  if (!viewport) {
+    console.error("Viewport not found:", this.selected_viewport);
+    return;
+  }
+
+  // Toggle invert property
+  const properties = viewport.getProperties();
+  const newInvertState = !properties.invert;
+
+  viewport.setProperties({
+    invert: newInvertState
+  });
+
+  // Re-render the viewport
+  viewport.render();
+
+  console.log(
+    `Image inversion ${newInvertState ? "enabled (black↔white)" : "disabled (normal)"}`
+  );
+}
+
 
   generateReport = () => {
     this.setState({
@@ -1363,6 +1463,7 @@ class Viewer extends Component {
               </div>
 
               <div className="toolbar">
+
                 <button
                   className="tool-btn"
                   value="Zoom"
@@ -1370,14 +1471,6 @@ class Viewer extends Component {
                 >
                   Zoom
                 </button>
-                <button
-                  className="tool-btn"
-                  value="Magnify"
-                  onClick={(e) => this.toggleTool(e.target.value)}
-                >
-                  Magnify
-                </button>
-            
                 <button className='tool-btn' value='Length' onClick={e => this.toggleTool(e.target.value)}>
                   📐 Measure
                 </button>
@@ -1454,31 +1547,61 @@ class Viewer extends Component {
                   <option value="four">2x2</option>
                 </select>
 
-
-                  <select
-                  id="measurement"
-                  className="tool-btn measurement-dropdown"
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    if (value === "Reset") {
-                      this.viewportSettings("Reset", this.selected_viewport);
-                    } else {
-                      this.toggleTool(value);
-                    }
-                    e.target.selectedIndex = 0;
-                  }}
-                >
-                  <option value="" disabled defaultValue hidden>
-                    Moretool ▼
-                  </option>
-                  <option value="Probe">🔍 Pixel Value</option>
-                  <option value="Crosshairs">➕ Crosshairs</option>
-                  <option value="Reset">↩️ Reset</option>
-                  <option value="Wheel">🖱️ Stack Scroll</option>
-                  <option value="Wwwc">☀️ Window Level</option>
-                  <option value="Pan">✋ Pan</option>
+<select
+  id="measurement"
+  className="tool-btn measurement-dropdown"
+  defaultValue="" // placeholder
+  onChange={(e) => {
+    const value = e.target.value;
+    if (value === "Reset") {
+      this.viewportSettings("Reset", this.selected_viewport);
+    } else if (value === "Invert") {
+      this.toggleInvert();
+    } else if (value === "Download") {
     
-                </select>
+    
+        this.downloadAsJPEG(this.prev_selected_element);
+      
+    } else if (value === "capture") {
+      this.capture(this.prev_selected_element);
+    }
+     else {
+      this.toggleTool(value);
+    }
+    e.target.selectedIndex = 0; // reset dropdown
+  }}
+>
+  <option value="" disabled hidden>
+    More Tools ▼
+  </option>
+  <option value="Probe">🔍 Pixel Value</option>
+  <option value="Crosshairs">➕ Crosshairs</option>
+  <option value="Reset">↩️ Reset</option>
+  <option value="Wheel">🖱️ Stack Scroll</option>
+  <option value="Wwwc">☀️ Window Level</option>
+  <option value="Pan">✋ Pan</option>
+  <option value="Magnify">🔎 Magnify</option>
+  <option value="Invert">🌓 Invert</option>
+  <option value="Download">📸 Download JPEG</option>
+  <option value="capture">📷 Capture Viewport</option>
+</select>
+<button
+  className="tool-btn"
+  onClick={() => {
+    const studyInstanceUID =
+         (patientData && patientData.study_instance_uid ) || "unknown";
+    if (studyInstanceUID) {
+      const ohifUrl = `https://pacs.reportingbot.in/ohif/viewer?StudyInstanceUIDs=${studyInstanceUID}`;
+      window.open(ohifUrl, "_blank");
+    }
+  }}
+>
+  ohif
+</button>
+
+
+
+
               </div>
             </div>
 
