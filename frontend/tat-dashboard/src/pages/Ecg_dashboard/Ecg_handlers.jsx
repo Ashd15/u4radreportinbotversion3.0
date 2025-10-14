@@ -103,3 +103,66 @@ export const finalizeReport = async (
     return false;
   }
 };
+
+
+export const getGreeting = async () => {
+  try {
+    const res = await axios.get(`${API_BASE_URL}/greeting/`);
+    return res.data.greeting;
+  } catch (error) {
+    console.error("Error fetching greeting:", error);
+    return "";
+  }
+};
+
+// Fetch locations
+export const getLocations = async () => {
+  try {
+    const res = await axios.get(`${API_BASE_URL}/get_locations/`);
+    if (res.data.success) return res.data.locations;
+    return [];
+  } catch (error) {
+    console.error("Error fetching locations:", error);
+    return [];
+  }
+};
+
+// Fetch patients
+export const getPatients = async (doctorUsername, filters = {}) => {
+  try {
+    if (!doctorUsername) return [];
+
+    let url = `${API_BASE_URL}/patients_ecg/?username=${doctorUsername}`;
+    if (filters.location) url += `&location=${filters.location}`;
+    if (filters.test_date) url += `&test_date=${filters.test_date}`;
+    if (filters.search) url += `&search=${filters.search}`;
+
+    const res = await axios.get(url);
+
+    // Sort "Assigned" first
+    const sortedPatients = [...res.data].sort((a, b) => {
+      const aStatus = (a.status || "").toLowerCase();
+      const bStatus = (b.status || "").toLowerCase();
+      if (aStatus === "assigned" && bStatus !== "assigned") return -1;
+      if (aStatus !== "assigned" && bStatus === "assigned") return 1;
+      return 0;
+    });
+
+    return sortedPatients;
+  } catch (error) {
+    console.error("Error fetching patients:", error);
+    return [];
+  }
+};
+
+// Fetch doctor stats
+export const getDoctorStats = async (doctorUsername) => {
+  try {
+    if (!doctorUsername) return {};
+    const res = await axios.get(`${API_BASE_URL}/ecg_stat/?doctor_username=${doctorUsername}`);
+    return res.data;
+  } catch (error) {
+    console.error("Error fetching stats:", error);
+    return {};
+  }
+};

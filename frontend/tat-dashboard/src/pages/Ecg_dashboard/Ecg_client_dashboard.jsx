@@ -2,6 +2,8 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Search, X, Upload, Filter, ChevronLeft, ChevronRight, LogOut, Edit, Activity, Calendar, MapPin, User, Download, AlertCircle, RefreshCw, Moon, Sun, Eye } from 'lucide-react';
 import { fetchPatients, addPatient, fetchECGClient } from './Ecg_handler_dashboard';
+import { API_BASE_URL } from '../Api/apiconnector';
+
 
 const ECGPatientDashboard = () => {
   const [patients, setPatients] = useState([]);
@@ -231,7 +233,7 @@ const ECGPatientDashboard = () => {
   const viewECGImage = (imagePath) => {
     if (imagePath) {
       // Construct full URL if needed
-      const fullImageUrl = imagePath.startsWith('http') ? imagePath : `http://localhost:8000${imagePath}`;
+      const fullImageUrl = imagePath.startsWith('http') ? imagePath : `${API_BASE_URL}${imagePath}`;
       window.open(fullImageUrl, '_blank');
     }
   };
@@ -261,7 +263,7 @@ const ECGPatientDashboard = () => {
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-200">
       {/* Header */}
       <div className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
-        <div className="container mx-auto px-4 py-4">
+        <div className="w-full px-6 py-4">
           <div className="flex justify-between items-center">
             {/* Left side: Logo + Title */}
             <div className="flex items-center gap-3">
@@ -272,7 +274,7 @@ const ECGPatientDashboard = () => {
               />
               <div>
                 <h1 className="text-2xl font-bold text-black dark:text-white">
-                  ECG Patient Dashboard
+                  ECG Client Dashboard
                 </h1>
                 {ecgClient && (
                   <p className="text-sm text-gray-600 dark:text-gray-400 flex items-center gap-1">
@@ -291,9 +293,9 @@ const ECGPatientDashboard = () => {
                   <p className="text-sm font-medium text-black dark:text-white">
                     Welcome, {getUserDisplayName()}
                   </p>
-                  <p className="text-xs text-gray-600 dark:text-gray-400">
+                  {/* <p className="text-xs text-gray-600 dark:text-gray-400">
                     {userData.user?.group || 'User'}
-                  </p>
+                  </p> */}
                 </div>
               )}
 
@@ -320,7 +322,7 @@ const ECGPatientDashboard = () => {
       </div>
 
       {/* Main Content */}
-      <div className="container mx-auto px-4 py-6">
+      <div className="w-full px-6 py-6">
         {/* Stats Section - Updated to remove urgent cases */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4 text-center">
@@ -368,13 +370,13 @@ const ECGPatientDashboard = () => {
               <Plus className="w-5 h-5" />
               Add Patient
             </button>
-            <button 
+            {/* <button 
               onClick={loadPatients}
               className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 text-black dark:text-white flex items-center gap-2"
             >
               <RefreshCw className="w-5 h-5" />
               Refresh
-            </button>
+            </button> */}
           </div>
 
           {/* Filters Panel */}

@@ -1,6 +1,6 @@
 // reviewer_handlers.js
-
-const API_BASE_URL = 'http://localhost:8000/api';
+import { API_BASE_URL } from "../Api/apiconnector";
+// const API_BASE_URL = 'http://localhost:8000/api';
 
 const apiHandlers = {
   // Fetch all radiologists
