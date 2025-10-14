@@ -1,6 +1,9 @@
 // API Handler Class
+import { API_BASE_URL } from "../Api/apiconnector";
+
+
 class ApiHandlerSuperCoordinator {
-  constructor(baseUrl = "http://127.0.0.1:8000") {
+  constructor(baseUrl = API_BASE_URL) {
     this.baseUrl = baseUrl;
   }
 

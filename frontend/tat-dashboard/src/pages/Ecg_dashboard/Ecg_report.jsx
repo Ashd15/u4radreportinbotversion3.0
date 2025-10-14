@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useParams, useLocation, useNavigate } from "react-router-dom";
 import { X, FileText, Check, Eye } from "lucide-react";
 import { fetchPatientDetails, previewReport as generatePreview, finalizeReport } from "./Ecg_handlers";
+import { API_BASE_URL } from "../Api/apiconnector";
 
 const PatientReportPage = () => {
   const { patientId } = useParams();
@@ -125,7 +126,7 @@ const PatientReportPage = () => {
             </label>
             <div className="flex justify-center overflow-x-auto">
               <img
-                src={`http://127.0.0.1:8000${patient.image}`}
+                src={`${API_BASE_URL}${patient.image}`}
                 alt="ECG"
                 className="max-w-full h-auto border rounded-lg shadow-sm"
               />

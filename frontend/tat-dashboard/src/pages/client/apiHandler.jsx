@@ -1,9 +1,9 @@
 // apiHandler.jsx
 import axios from 'axios';
-
+import { API_BASE_URL } from './../Api/apiconnector';
 // Create an axios instance with default settings
 const api = axios.create({
-  baseURL: 'http://localhost:8000/api', // use same origin for session cookie
+  baseURL: API_BASE_URL, // use same origin for session cookie
   withCredentials: true, // sends cookies automatically
   headers: { 'Content-Type': 'application/json' },
 });

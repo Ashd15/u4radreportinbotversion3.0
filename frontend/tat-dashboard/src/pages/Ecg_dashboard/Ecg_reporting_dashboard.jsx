@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import { Moon, Sun, LogOut } from "lucide-react";
+import { getGreeting, getLocations, getPatients, getDoctorStats } from "./Ecg_handlers";
 
 const CardiologistDashboard = () => {
   const navigate = useNavigate();
@@ -34,47 +35,17 @@ const CardiologistDashboard = () => {
 
   // ✅ Fetch greeting
   useEffect(() => {
-    axios
-      .get("http://127.0.0.1:8000/api/greeting/")
-      .then((res) => setGreeting(res.data.greeting))
-      .catch((err) => console.error("Error fetching greeting:", err));
+    getGreeting().then(setGreeting);
   }, []);
 
   // ✅ Fetch locations
   useEffect(() => {
-    axios
-      .get("http://127.0.0.1:8000/api/get_locations/")
-      .then((res) => {
-        if (res.data.success) setLocations(res.data.locations);
-      })
-      .catch((err) => console.error("Error fetching locations:", err));
+    getLocations().then(setLocations);
   }, []);
 
   // ✅ Fetch patients list
-  // ✅ Fetch patients list
   const fetchPatients = () => {
-    if (!doctorUsername) return;
-    let url = `http://127.0.0.1:8000/api/patients_ecg/?username=${doctorUsername}`;
-    if (filters.location) url += `&location=${filters.location}`;
-    if (filters.test_date) url += `&test_date=${filters.test_date}`;
-    if (filters.search) url += `&search=${filters.search}`;
-
-    axios
-      .get(url)
-      .then((res) => {
-        // ✅ Sort patients: "Assigned" first, then others
-        const sortedPatients = [...res.data].sort((a, b) => {
-          const aStatus = (a.status || "").toLowerCase();
-          const bStatus = (b.status || "").toLowerCase();
-
-          if (aStatus === "assigned" && bStatus !== "assigned") return -1;
-          if (aStatus !== "assigned" && bStatus === "assigned") return 1;
-          return 0;
-        });
-
-        setPatients(sortedPatients);
-      })
-      .catch((err) => console.error("Error fetching patients:", err));
+    getPatients(doctorUsername, filters).then(setPatients);
   };
 
 
@@ -84,11 +55,7 @@ const CardiologistDashboard = () => {
 
   // ✅ Fetch doctor stats
   useEffect(() => {
-    if (!doctorUsername) return;
-    axios
-      .get(`http://127.0.0.1:8000/api/ecg_stat/?doctor_username=${doctorUsername}`)
-      .then((res) => setStats(res.data))
-      .catch((err) => console.error("Error fetching stats:", err));
+    getDoctorStats(doctorUsername).then(setStats);
   }, [doctorUsername]);
 
   // ✅ Navigate to ECG report page
