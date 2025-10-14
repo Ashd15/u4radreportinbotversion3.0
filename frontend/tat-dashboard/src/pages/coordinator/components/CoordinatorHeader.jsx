@@ -152,6 +152,9 @@ const CoordinatorHeader = ({
                         }`}>
                           Coordinator
                         </div>
+                        <div className={`text-xs mt-1 ${
+                          darkMode ? 'text-gray-400' : 'text-gray-500'
+                        }`}>{currentCoordinator?.about}</div>
                       </div>
                     </div>
                     

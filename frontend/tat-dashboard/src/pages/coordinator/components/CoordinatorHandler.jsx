@@ -4,12 +4,19 @@ const CoordinatorHandler = {
   // Get coordinators profile data
   getCoordinators: async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/coordinators/`);
+      const response = await fetch(`${API_BASE_URL}/coordinators/`, {
+         method: "GET",
+         credentials: "include", // ✅ Include cookies for authentication
+         headers: {
+           "Content-Type": "application/json",
+         },
+    });
+
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       const data = await response.json();
-      return data;
+      return data.result; // ✅ Extract the coordinator object from the 'result' key
     } catch (error) {
       console.error('Error fetching coordinators:', error);
       throw error;
@@ -20,7 +27,7 @@ const CoordinatorHandler = {
   getTatCounters: async (cursor = null) => {
     try {
       const params = new URLSearchParams();
-      params.append('limit', '10'); // You can adjust this limit
+      params.append('limit', '3'); // You can adjust this limit
       if (cursor) {
         params.append('cursor', cursor);
       }

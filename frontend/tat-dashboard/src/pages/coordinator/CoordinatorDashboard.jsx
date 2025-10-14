@@ -7,7 +7,7 @@ import CoordinatorFilters from "./components/CoordinatorFilters";
 import CoordinatorGridTable from "./components/CoordinatorGridTable";
 
 const Coordinator = () => {
-  const [coordinators, setCoordinators] = useState([]);
+  const [currentCoordinator, setCurrentCoordinator] = useState(null);
   const [patients, setPatients] = useState([]);
   const [filteredPatients, setFilteredPatients] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -148,7 +148,7 @@ useEffect(() => {
       (!patient.patient_reports || patient.patient_reports.length === 0)
     ).length || 0;
 
-      setCoordinators(coordinatorData);
+      setCurrentCoordinator(coordinatorData);
       setPatients(patientData.results || []);
       setFilteredPatients(patientData.results || []);
       setRadiologists(radiologistData);
@@ -622,8 +622,6 @@ useEffect(() => {
       )}
     </div>
   );
-
-  const currentCoordinator = coordinators[0];
 
   if (loading) {
     return (
