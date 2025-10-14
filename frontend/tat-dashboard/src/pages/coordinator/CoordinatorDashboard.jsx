@@ -105,7 +105,7 @@ useEffect(() => {
   useEffect(() => {
     const timerId = setTimeout(() => {
       setDebouncedSearchTerm(searchTerm);
-    }, 2000); // 500ms delay
+    }, 1000); // 500ms delay
 
     return () => {
       clearTimeout(timerId);
